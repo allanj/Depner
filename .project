@@ -20,4 +20,11 @@
 		<nature>org.eclipse.jdt.core.javanature</nature>
 		<nature>org.eclipse.m2e.core.maven2Nature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>lib/stanford-english-corenlp-models-current.jar</name>
+			<type>1</type>
+			<location>F:/phd/data/stanford_models/stanford-english-corenlp-models-current.jar</location>
+		</link>
+	</linkedResources>
 </projectDescription>

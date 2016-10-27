@@ -1,1 +1,7 @@
 /target/
+lib/stanford-english-corenlp-models-current.jar
+*.class
+*.jar
+*.war
+*.ear
+.settings/*
