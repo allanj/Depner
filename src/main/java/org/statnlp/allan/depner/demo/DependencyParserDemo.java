@@ -4,13 +4,14 @@ import edu.stanford.nlp.util.logging.Redwood;
 
 import edu.stanford.nlp.ling.HasWord;
 import edu.stanford.nlp.ling.TaggedWord;
-import edu.stanford.nlp.parser.nndep.DependencyParser;
 import edu.stanford.nlp.process.DocumentPreprocessor;
 import edu.stanford.nlp.tagger.maxent.MaxentTagger;
 import edu.stanford.nlp.trees.GrammaticalStructure;
 
 import java.io.StringReader;
 import java.util.List;
+
+import org.statnlp.allan.depner.DependencyParser;
 
 /**
  * Demonstrates how to first use the tagger, then use the NN dependency

@@ -159,6 +159,7 @@ public class DependencyParser  {
 
   public List<Integer> getFeatures(Configuration c) {
     // Presize the arrays for very slight speed gain. Hardcoded, but so is the current feature list.
+	// Not specify the initial capacity will make the list dynamically resize
     List<Integer> fWord = new ArrayList<>(18);
     List<Integer> fPos = new ArrayList<>(18);
     List<Integer> fLabel = new ArrayList<>(12);
