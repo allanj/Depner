@@ -35,7 +35,7 @@ public class ArcStandard extends ParsingSystem {
     for (String label : labels)
       transitions.add("R(" + label + ")");
 
-    transitions.add("S");
+    transitions.add("S"); //shift operation
   }
 
   @Override
@@ -46,6 +46,7 @@ public class ArcStandard extends ParsingSystem {
     // For each token, add dummy elements to the configuration's tree
     // and add the words onto the buffer
     for (int i = 1; i <= length; ++i) {
+      //for each node, initially no head and unknown label.
       c.tree.add(Config.NONEXIST, Config.UNKNOWN);
       c.buffer.add(i);
     }
