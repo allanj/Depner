@@ -1,28 +1,21 @@
 package org.statnlp.allan.nner;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-import org.statnlp.allan.depner.Config;
-import org.statnlp.allan.depner.Configuration;
-import org.statnlp.allan.depner.DependencyTree;
+import org.statnlp.allan.io.RAWF;
 
-import edu.stanford.nlp.ling.CoreAnnotations;
-import edu.stanford.nlp.ling.CoreLabel;
-import edu.stanford.nlp.trees.PennTreebankLanguagePack;
 import edu.stanford.nlp.trees.TreebankLanguagePack;
-import edu.stanford.nlp.util.CollectionUtils;
 import edu.stanford.nlp.util.CoreMap;
 import edu.stanford.nlp.util.logging.Redwood;
 
 /**
- * Defines a transition-based parsing framework for named entity recognition
+ * Defines a transition-based parsing framework for (nested) named entity recognition
  *
- * @author Danqi Chen
+ * @author Allan Jie
  */
 public abstract class NERParsingSystem  {
 
@@ -31,14 +24,14 @@ public abstract class NERParsingSystem  {
 
   /**
    * Defines language-specific settings for this parsing instance.
+   * Maybe not really useful for our NER experiments
    */
   private final TreebankLanguagePack tlp;
 
   /**
-   * Dependency label used between root of sentence and ROOT node
+   * labels: entity type
+   * transition: actions to do
    */
-  protected final String rootLabel;
-
   protected List<String> labels, transitions;
 
   /**
@@ -51,46 +44,46 @@ public abstract class NERParsingSystem  {
    * Determine whether the given transition is legal for this
    * configuration.
    *
-   * @param c Parsing configuration
-   * @param t Transition string
+   * @param c Parsing configuration: stack, buffer things
+   * @param t Transition string: from the transition lists
    * @return Whether the given transition is legal in this
    *         configuration
    */
-  public abstract boolean canApply(Configuration c, String t);
+  public abstract boolean canApply(NEConfiguration c, String t);
 
   /**
    * Apply the given transition to the given configuration, modifying
    * the configuration's state in place.
    */
-  public abstract void apply(Configuration c, String t);
+  public abstract void apply(NEConfiguration c, String t);
 
   /**
    * Provide a static-oracle recommendation for the next parsing step
    * to take.
    *
    * @param c Current parser configuration
-   * @param dTree Gold tree which parser needs to reach
+   * @param dSeq Gold sequence which parser needs to reach
    * @return Transition string
    */
-  public abstract String getOracle(Configuration c, DependencyTree dTree);
+  public abstract String getOracle(NEConfiguration c, Sequence dSeq);
 
   /**
    * Determine whether applying the given transition in the given
-   * configuration tree will leave in us a state in which we can reach
-   * the gold tree. (Useful for building a dynamic oracle.)
+   * configuration sequence will leave in us a state in which we can reach
+   * the gold sequence. (Useful for building a dynamic oracle.)
    */
-  abstract boolean isOracle(Configuration c, String t, DependencyTree dTree);
+  abstract boolean isOracle(NEConfiguration c, String t, Sequence dSeq);
 
   /**
    * Build an initial parser configuration from the given sentence.
    */
-  public abstract Configuration initialConfiguration(CoreMap sentence);
+  public abstract NEConfiguration initialConfiguration(Sequence sentence);
 
   /**
    * Determine if the given configuration corresponds to a parser which
    * has completed its parse.
    */
-  abstract boolean isTerminal(Configuration c);
+  public abstract boolean isTerminal(NEConfiguration c);
 
   /**
    * Return the number of transitions.
@@ -110,19 +103,25 @@ public abstract class NERParsingSystem  {
   public NERParsingSystem(TreebankLanguagePack tlp, List<String> labels, boolean verbose) {
     this.tlp = tlp;
     this.labels = new ArrayList<>(labels);
-
     //NOTE: assume that the first element of labels is rootLabel
-    rootLabel = labels.get(0);
+    //in our NER case, there is no root element
+    //rootLabel = labels.get(0);
     makeTransitions();
 
     if (verbose) {
-      log.info(Config.SEPARATOR);
+      log.info(NEConfig.SEPARATOR);
       log.info("#Transitions: " + numTransitions());
       log.info("#Labels: " + labels.size());
-      log.info("ROOTLABEL: " + rootLabel);
+      log.info("Eval_Script:"+NEConfig.EVAL_SCRIPT);
+      //log.info("ROOTLABEL: " + rootLabel);
     }
   }
 
+  /**
+   * Using this one is O(n) complexity.
+   * @param s
+   * @return
+   */
   public int getTransitionID(String s) {
     int numTrans = numTransitions();
     for (int k = 0; k < numTrans; ++k)
@@ -131,14 +130,6 @@ public abstract class NERParsingSystem  {
     return -1;
   }
 
-  private Set<String> getPunctuationTags() {
-    if (tlp instanceof PennTreebankLanguagePack) {
-      // Hack for English: match punctuation tags used in Danqi's paper
-      return new HashSet<>(Arrays.asList("''", ",", ".", ":", "``", "-LRB-", "-RRB-"));
-    } else {
-      return CollectionUtils.asSet(tlp.punctuationTags());
-    }
-  }
 
   /**
    * Evaluate performance on a list of sentences, predicted parses,
@@ -146,96 +137,46 @@ public abstract class NERParsingSystem  {
    *
    * @return A map from metric name to metric value
    */
-  public Map<String, Double> evaluate(List<CoreMap> sentences, List<DependencyTree> trees,
-                                      List<DependencyTree> goldTrees) {
+  public Map<String, Double> evaluate(List<Sequence> sents, List<Sequence> predictions,
+                                      List<Sequence> golds, String evalOut) {
     Map<String, Double> result = new HashMap<>();
 
-    // We'll skip words which are punctuation. Retrieve tags indicating
-    // punctuation in this treebank.
-    Set<String> punctuationTags = getPunctuationTags();
-
-    if (trees.size() != goldTrees.size()) {
-      log.err("Incorrect number of trees.");
+    if (predictions.size() != golds.size()) {
+      log.err("Incorrect number of predictions.");
       return null;
     }
-
-    int correctArcs = 0;
-    int correctArcsNoPunc = 0;
-    int correctHeads = 0;
-    int correctHeadsNoPunc = 0;
-
-    int correctTrees = 0;
-    int correctTreesNoPunc = 0;
-    int correctRoot = 0;
-
-    int sumArcs = 0;
-    int sumArcsNoPunc = 0;
-
-    for (int i = 0; i < trees.size(); ++i) {
-      List<CoreLabel> tokens = sentences.get(i).get(CoreAnnotations.TokensAnnotation.class);
-
-      if (trees.get(i).n != goldTrees.get(i).n) {
-        log.err("Tree " + (i + 1) + ": incorrect number of nodes.");
-        return null;
-      }
-      if (!trees.get(i).isTree()) {
-        log.err("Tree " + (i + 1) + ": illegal.");
-        return null;
-      }
-
-      int nCorrectHead = 0;
-      int nCorrectHeadNoPunc = 0;
-      int nNoPunc = 0;
-
-      for (int j = 1; j <= trees.get(i).n; ++j) {
-        if (trees.get(i).getHead(j) == goldTrees.get(i).getHead(j)) {
-          ++correctHeads;
-          ++nCorrectHead;
-          if (trees.get(i).getLabel(j).equals(goldTrees.get(i).getLabel(j)))
-            ++correctArcs;
-        }
-        ++sumArcs;
-
-        String tag = tokens.get(j - 1).tag();
-        if (!punctuationTags.contains(tag)) {
-          ++sumArcsNoPunc;
-          ++nNoPunc;
-          if (trees.get(i).getHead(j) == goldTrees.get(i).getHead(j)) {
-            ++correctHeadsNoPunc;
-            ++nCorrectHeadNoPunc;
-            if (trees.get(i).getLabel(j).equals(goldTrees.get(i).getLabel(j)))
-              ++correctArcsNoPunc;
-          }
-        }
-      }
-      if (nCorrectHead == trees.get(i).n)
-        ++correctTrees;
-      if (nCorrectHeadNoPunc == nNoPunc)
-        ++correctTreesNoPunc;
-      if (trees.get(i).getRoot() == goldTrees.get(i).getRoot())
-        ++correctRoot;
-    }
-
-    result.put("UAS", correctHeads * 100.0 / sumArcs);
-    result.put("UASnoPunc", correctHeadsNoPunc * 100.0 / sumArcsNoPunc);
-    result.put("LAS", correctArcs * 100.0 / sumArcs);
-    result.put("LASnoPunc", correctArcsNoPunc * 100.0 / sumArcsNoPunc);
-
-    result.put("UEM", correctTrees * 100.0 / trees.size());
-    result.put("UEMnoPunc", correctTreesNoPunc * 100.0 / trees.size());
-    result.put("ROOT", correctRoot * 100.0 / trees.size());
-
+    //currently, we dun have anything to plugin to result. 
+    //just show the conll eval script result
+    conlleval(sents, predictions, golds, evalOut);
 
     return result;
   }
 
-  public double getUAS(List<CoreMap> sentences, List<DependencyTree> trees, List<DependencyTree> goldTrees) {
-    Map<String, Double> result = evaluate(sentences, trees, goldTrees);
-    return result == null || !result.containsKey("UAS") ? -1.0 : result.get("UAS");
+  /**
+   * Evaluate the file using the evaluation script.
+   * @param sents
+   * @param predictions
+   * @param golds
+   * @param evalOut
+   */
+  private void conlleval(List<Sequence> sents, List<Sequence> predictions, 
+		  List<Sequence> golds, String evalOut){
+	  PrintWriter pw;
+	  try {
+		  pw = RAWF.writer(evalOut);
+		  for(int pos = 0; pos < sents.size(); pos++){
+			  Sequence sent = sents.get(pos);
+			  Sequence prediction = predictions.get(pos);
+			  Sequence gold = golds.get(pos);
+			  for(int i = 0; i < sent.size(); i++){
+				  pw.println(sent.get(i).word()+" "+ gold.get(i).ner() +" "+ prediction.get(i).ner());
+			  }
+			  pw.println();
+		  }
+		  pw.close();
+	  } catch (IOException e) {
+		  e.printStackTrace();
+	  }
   }
 
-  public double getUASnoPunc(List<CoreMap> sentences, List<DependencyTree> trees, List<DependencyTree> goldTrees) {
-    Map<String, Double> result = evaluate(sentences, trees, goldTrees);
-    return result == null || !result.containsKey("UASnoPunc") ? -1.0 : result.get("UASnoPunc");
-  }
 }
