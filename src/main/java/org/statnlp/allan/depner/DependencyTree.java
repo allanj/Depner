@@ -8,11 +8,11 @@ import java.util.*;
  *
  * @author Danqi Chen
  */
-class DependencyTree {
+public class DependencyTree {
 
-  int n;
-  List<Integer> head;
-  List<String> label;
+  public int n;
+  public List<Integer> head;
+  public List<String> label;
   private int counter;
 
   public DependencyTree() {
