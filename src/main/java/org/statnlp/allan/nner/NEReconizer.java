@@ -561,9 +561,9 @@ public class NEReconizer {
 	 * @param modelFile
 	 *            String to which model should be saved
 	 * @param embedFile
-	 *            File containing word embeddings for words used in training
-	 *            corpus
-	 * TODO: modify the accuracy to get the f-score 
+	 *            File containing word embeddings for words used in training corpus
+	 * @param evalFile 
+	 * 			  The evaluation file for getting the f-score using the conlleval script, can be just a temporary file.
 	 */
 	public void train(String trainFile, String devFile, String modelFile, String embedFile, String preModel) {
 		log.info("Train File: " + trainFile);
@@ -600,7 +600,7 @@ public class NEReconizer {
 		/**
 		 * Track the best accracy performance we've seen.
 		 */
-		double bestAcc = 0;
+		double bestFscore = 0;
 
 		for (int iter = 0; iter < config.maxIter; ++iter) {
 			log.info("##### Iteration " + iter);
@@ -612,7 +612,7 @@ public class NEReconizer {
 
 			log.info("Elapsed Time: " + (System.currentTimeMillis() - startTime) / 1000.0 + " (s)");
 
-			// UAS evaluation
+			// Fscore evaluation
 			if (devFile != null && iter % config.evalPerIter == 0) {
 				// Redo precomputation with updated weights. This is only
 				// necessary because we're updating weights -- for normal
@@ -621,16 +621,11 @@ public class NEReconizer {
 
 				List<Sequence> predicted = devSents.stream().map(this::predictInner).collect(toList());
 
-				//so far we can maximize the accuracy here.
-				double acc = system.getAcc(devSents, predicted, devNERs);
-//				there is no UAS
-//				double uas = config.noPunc ? system.getUASnoPunc(devSents, predicted, devNERs)
-//						: system.getUAS(devSents, predicted, devNERs);
-//				log.info("UAS: " + uas);
+				double fscore = system.getFscore(devSents, predicted, devNERs, NEConfig.EVAL_FILE);
 
-				if (config.saveIntermediate && acc > bestAcc) {
-					System.err.printf("Exceeds best previous UAS of %f. Saving model file..%n", bestAcc);
-					bestAcc = acc;
+				if (config.saveIntermediate && fscore > bestFscore) {
+					System.err.printf("Exceeds best previous UAS of %f. Saving model file..%n", bestFscore);
+					bestFscore = fscore;
 					writeModelFile(modelFile);
 				}
 			}
@@ -648,11 +643,11 @@ public class NEReconizer {
 			// Do final UAS evaluation and save if final model beats the
 			// best intermediate one
 			List<Sequence> predicted = devSents.stream().map(this::predictInner).collect(toList());
-			double acc = system.getAcc(devSents, predicted, devNERs);
+			double fscore = system.getFscore(devSents, predicted, devNERs, NEConfig.EVAL_FILE);
 
-			if (acc > bestAcc) {
-				System.err.printf("Final model UAS: %f%n", acc);
-				System.err.printf("Exceeds best previous UAS of %f. Saving model file..%n", bestAcc);
+			if (fscore > bestFscore) {
+				System.err.printf("Final model F-score: %f%n", fscore);
+				System.err.printf("Exceeds best previous UAS of %f. Saving model file..%n", bestFscore);
 
 				writeModelFile(modelFile);
 			}
