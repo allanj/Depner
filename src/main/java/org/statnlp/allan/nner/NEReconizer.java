@@ -14,6 +14,7 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 
+import org.statnlp.allan.depner.Config;
 import org.statnlp.allan.depner.Dataset;
 
 import edu.stanford.nlp.international.Language;
@@ -122,7 +123,7 @@ public class NEReconizer {
 	}
 
 	public int getLabelID(String s) {
-		return labelIDs.get(s);
+		return labelIDs.containsKey(s) ? labelIDs.get(s) : labelIDs.get(Config.UNKNOWN);
 	}
 
 	public List<Integer> getFeatures(NEConfiguration c) {
@@ -145,7 +146,7 @@ public class NEReconizer {
 			fPos.add(getPosID(c.getPOS(index)));
 		}
 
-		List<Integer> feature = new ArrayList<>(48);
+		List<Integer> feature = new ArrayList<>(15);
 		feature.addAll(fWord);
 		feature.addAll(fPos);
 		feature.addAll(fLabel);

@@ -17,6 +17,8 @@ public abstract class Sequence {
 	public Sequence(int capacity){
 		this.capacity = capacity;
 		this.tokens = new CoreLabel[capacity];
+		for(int i = 0; i < tokens.length; i++)
+			tokens[i] = new CoreLabel();
 	}
 	
 	public Sequence(Sequence seq){
