@@ -275,11 +275,11 @@ public class NEReconizer {
 
 		knownWords.add(0, NEConfig.UNKNOWN);
 		knownWords.add(1, NEConfig.NULL);
-		knownWords.add(2, NEConfig.ROOT);
+		//knownWords.add(2, NEConfig.ROOT);
 
 		knownPos.add(0, NEConfig.UNKNOWN);
 		knownPos.add(1, NEConfig.NULL);
-		knownPos.add(2, NEConfig.ROOT);
+		//knownPos.add(2, NEConfig.ROOT);
 
 		knownLabels.add(0, NEConfig.NULL);
 		generateIDs();

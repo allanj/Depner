@@ -28,11 +28,6 @@ public class NEConfig {
   public static final String UNKNOWN = "-UNKNOWN-";
 
    /**
-   *   Root token string.
-   */
-  public static final String ROOT = "-ROOT-";
-
-   /**
    *   Non-existent token string.
    */
   public static final String NULL = "-NULL-";
