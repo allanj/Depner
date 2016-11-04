@@ -203,8 +203,8 @@ public abstract class NERParsingSystem {
 				pb = new ProcessBuilder(NEConfig.EVAL_SCRIPT); 
 			}
 			pb.redirectInput(new File(outputFile));
-			pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-			pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+			//pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+			//pb.redirectError(ProcessBuilder.Redirect.INHERIT);
 			Process process = pb.start();
 			BufferedReader in = new BufferedReader(new InputStreamReader(process.getInputStream()));
 			String line;

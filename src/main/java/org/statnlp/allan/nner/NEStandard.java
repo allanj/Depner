@@ -49,6 +49,7 @@ public class NEStandard extends NERParsingSystem {
 
 	@Override
 	public boolean canApply(NEConfiguration c, String t) {
+		// TODO: I should define some NER recognition rules here.
 		int nBuffer = c.getBufferSize();
 		return nBuffer > 0;
 	}
