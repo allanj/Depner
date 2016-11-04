@@ -1,8 +1,5 @@
 package org.statnlp.allan.nner;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import edu.stanford.nlp.ling.CoreLabel;
 
 /**
@@ -25,6 +22,11 @@ public abstract class Sequence {
 	public Sequence(Sequence seq){
 		this.capacity = seq.capacity;
 		this.tokens = seq.tokens.clone();
+	}
+	
+	public Sequence(CoreLabel[] tokens){
+		this.capacity = tokens.length;
+		this.tokens = tokens;
 	}
 	
 	public int size(){

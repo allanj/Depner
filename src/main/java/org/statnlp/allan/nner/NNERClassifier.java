@@ -25,7 +25,7 @@ import org.statnlp.allan.depner.Example;
  * inputs, and feeds back errors to these input layers as it learns.
  *
  * In order to train a classifier, instantiate this class using the
- * {@link #Classifier(Config, Dataset, double[][], double[][], double[], double[][], java.util.List)}
+ * {@link #NNERClassifier(Config, Dataset, double[][], double[][], double[], double[][], java.util.List)}
  * constructor. (The presence of a non-null dataset signals that we
  * wish to train.) After training by alternating calls to
  * {@link #computeCostFunction(int, double, double)} and,
@@ -207,9 +207,9 @@ public class NNERClassifier  {
                             .toArray();
 
         int offset = 0;
-        for (int j = 0; j < config.numTokens; ++j) {
+        for (int j = 0; j < NEConfig.numTokens; ++j) {
           int tok = feature.get(j);
-          int index = tok * config.numTokens + j;
+          int index = tok * NEConfig.numTokens + j;
 
           if (preMap.containsKey(index)) {
             // Unit activations for this input feature value have been
@@ -279,9 +279,9 @@ public class NNERClassifier  {
         }
 
         offset = 0;
-        for (int j = 0; j < config.numTokens; ++j) {
+        for (int j = 0; j < NEConfig.numTokens; ++j) {
           int tok = feature.get(j);
-          int index = tok * config.numTokens + j;
+          int index = tok * NEConfig.numTokens + j;
           if (preMap.containsKey(index)) {
             int id = preMap.get(index);
             for (int nodeIndex : ls)
@@ -399,8 +399,8 @@ public class NNERClassifier  {
     private void backpropSaved(Set<Integer> featuresSeen) {
       for (int x : featuresSeen) {
         int mapX = preMap.get(x);
-        int tok = x / config.numTokens;
-        int offset = (x % config.numTokens) * config.embeddingSize;
+        int tok = x / NEConfig.numTokens;
+        int offset = (x % NEConfig.numTokens) * config.embeddingSize;
         for (int j = 0; j < config.hiddenSize; ++j) {
           double delta = gradSaved[mapX][j];
           for (int k = 0; k < config.embeddingSize; ++k) {
@@ -478,9 +478,9 @@ public class NNERClassifier  {
     for (Example ex : examples) {
       List<Integer> feature = ex.getFeature();
 
-      for (int j = 0; j < config.numTokens; j++) {
+      for (int j = 0; j < NEConfig.numTokens; j++) {
         int tok = feature.get(j);
-        int index = tok * config.numTokens + j;
+        int index = tok * NEConfig.numTokens + j;
         if (preMap.containsKey(index))
           featureIDs.add(index);
       }
@@ -664,8 +664,8 @@ public class NNERClassifier  {
 
     for (int x : toPreCompute) {
       int mapX = preMap.get(x);
-      int tok = x / config.numTokens;
-      int pos = x % config.numTokens;
+      int tok = x / NEConfig.numTokens;
+      int pos = x % NEConfig.numTokens;
       for (int j = 0; j < config.hiddenSize; ++j)
         for (int k = 0; k < config.embeddingSize; ++k)
           saved[mapX][j] += W1[j][pos * config.embeddingSize + k] * E[tok][k];
@@ -687,7 +687,7 @@ public class NNERClassifier  {
     int offset = 0;
     for (int j = 0; j < feature.length; ++j) {
       int tok = feature[j];
-      int index = tok * config.numTokens + j;
+      int index = tok * NEConfig.numTokens + j;
 
       if (preMap.containsKey(index)) {
         int id = preMap.get(index);

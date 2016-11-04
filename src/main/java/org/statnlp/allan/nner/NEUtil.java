@@ -1,19 +1,20 @@
 
 package org.statnlp.allan.nner;
 
-import edu.stanford.nlp.util.logging.Redwood;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 import edu.stanford.nlp.io.IOUtils;
 import edu.stanford.nlp.io.RuntimeIOException;
-import edu.stanford.nlp.ling.CoreAnnotations;
 import edu.stanford.nlp.ling.CoreLabel;
-import edu.stanford.nlp.process.CoreLabelTokenFactory;
 import edu.stanford.nlp.stats.Counter;
 import edu.stanford.nlp.stats.Counters;
 import edu.stanford.nlp.stats.IntCounter;
-import edu.stanford.nlp.util.CoreMap;
-import java.util.*;
-import java.io.*;
+import edu.stanford.nlp.util.logging.Redwood;
 
 /**
  *
@@ -132,11 +133,8 @@ public class NEUtil {
 		return input.subList(0, subsetSize);
 	}
 
-	// TODO replace with
-	// GrammaticalStructure#readCoNLLGrammaticalStructureCollection
 	public static void loadConllFile(String inFile, List<Sequence> sents, List<Sequence> ners, boolean unlabeled,
 			boolean cPOS) {
-		CoreLabelTokenFactory tf = new CoreLabelTokenFactory(false);
 
 		BufferedReader reader = null;
 		try {
@@ -148,34 +146,32 @@ public class NEUtil {
 			for (String line : IOUtils.getLineIterable(reader, false)) {
 				String[] splits = line.split("\t");
 				if (splits.length < 10) {
-					if (sentenceTokens.size() > 0) {
-						trees.add(tree);
-						CoreMap sentence = new CoreLabel();
-						sentence.set(CoreAnnotations.TokensAnnotation.class, sentenceTokens);
-						sents.add(sentence);
-						tree = new DependencyTree();
-						sentenceTokens = new ArrayList<>();
+					if (sent.size() > 0) {
+						CoreLabel[] nerArr = new CoreLabel[nerSeq.size()];
+						nerSeq.toArray(nerArr);
+						ners.add(new NESeq(nerArr));
+						CoreLabel[] sentArr = new CoreLabel[sent.size()];
+						sent.toArray(sentArr);
+						sents.add(new Sent(sentArr));
+						sent = new ArrayList<>();
+						nerSeq = new ArrayList<>();
 					}
 				} else {
-					String word = splits[1], pos = cPOS ? splits[3] : splits[4], depType = splits[7];
+					String word = splits[1], pos = cPOS ? splits[3] : splits[4], label = splits[10];
 
-					int head = -1;
-					try {
-						head = Integer.parseInt(splits[6]);
-					} catch (NumberFormatException e) {
-						continue;
-					}
-
-					CoreLabel token = tf.makeToken(word, 0, 0);
+					CoreLabel token = new CoreLabel();
+					token.setWord(word);
 					token.setTag(pos);
-					token.set(CoreAnnotations.CoNLLDepParentIndexAnnotation.class, head);
-					token.set(CoreAnnotations.CoNLLDepTypeAnnotation.class, depType);
-					sentenceTokens.add(token);
+					sent.add(token);
 
-					if (!unlabeled)
-						tree.add(head, depType);
-					else
-						tree.add(head, Config.UNKNOWN);
+					CoreLabel nerToken = new CoreLabel();
+					if (!unlabeled) {
+						nerToken.setNER(label);
+						nerSeq.add(nerToken);
+					} else {
+						nerToken.setNER(NEConfig.UNKNOWN); // unknown ne type
+						nerSeq.add(nerToken);
+					}
 				}
 			}
 		} catch (IOException e) {
@@ -197,11 +193,10 @@ public class NEUtil {
 				Sequence sentence = sentences.get(i);
 				Sequence ner = ners.get(i);
 
-				List<CoreLabel> tokens = sentence.get(CoreAnnotations.TokensAnnotation.class);
-
-				for (int j = 1, size = tokens.size(); j <= size; ++j) {
-					CoreLabel token = tokens.get(j - 1);
-					output.printf("%d\t%s\t_\t%s\t%s\t_\t%s\t_\t_%n", j, token.word(), token.tag(), token.tag(), ner.get(j)[0]);
+				for (int j = 0; j < sentence.size(); ++j) {
+					String word = sentence.get(j)[0];
+					String tag = sentence.get(j)[1];
+					output.printf("%d\t%s\t_\t%s\t%s\t_\t%s\t_\t_%n", j, word, tag, tag, ner.get(j)[0]);
 				}
 				output.println();
 			}

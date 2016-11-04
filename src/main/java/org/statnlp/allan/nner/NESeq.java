@@ -1,5 +1,7 @@
 package org.statnlp.allan.nner;
 
+import edu.stanford.nlp.ling.CoreLabel;
+
 public class NESeq extends Sequence {
 
 	public NESeq(int capacity) {
@@ -8,6 +10,10 @@ public class NESeq extends Sequence {
 	
 	public NESeq(Sequence neseq) {
 		super(neseq);
+	}
+	
+	public NESeq(CoreLabel[] tokens){
+		super(tokens);
 	}
 
 	@Override

@@ -25,7 +25,8 @@ public abstract class NERParsingSystem  {
    * Defines language-specific settings for this parsing instance.
    * Maybe not really useful for our NER experiments
    */
-  private final TreebankLanguagePack tlp;
+  @SuppressWarnings("unused")
+private final TreebankLanguagePack tlp;
 
   /**
    * labels: entity type

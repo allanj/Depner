@@ -17,6 +17,10 @@ public class Sent extends Sequence {
 	public Sent(Sequence sent) {
 		super(sent);
 	}
+	
+	public Sent(CoreLabel[] tokens){
+		super(tokens);
+	}
 
 	@Override
 	public void set(int pos, String... tokens) {

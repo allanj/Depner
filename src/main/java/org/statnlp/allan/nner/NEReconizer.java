@@ -1,48 +1,32 @@
 package org.statnlp.allan.nner;
 
-import edu.stanford.nlp.util.Generics;
-import edu.stanford.nlp.util.logging.Redwood;
+import static java.util.stream.Collectors.toList;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Random;
+import java.util.Set;
+
+import org.statnlp.allan.depner.Dataset;
 
 import edu.stanford.nlp.international.Language;
 import edu.stanford.nlp.io.IOUtils;
 import edu.stanford.nlp.io.RuntimeIOException;
-import edu.stanford.nlp.ling.CoreAnnotations;
-import edu.stanford.nlp.ling.CoreLabel;
-import edu.stanford.nlp.ling.HasTag;
-import edu.stanford.nlp.ling.HasWord;
-import edu.stanford.nlp.ling.IndexedWord;
-import edu.stanford.nlp.ling.TaggedWord;
-import edu.stanford.nlp.ling.Word;
-import edu.stanford.nlp.process.DocumentPreprocessor;
 import edu.stanford.nlp.stats.Counter;
 import edu.stanford.nlp.stats.Counters;
 import edu.stanford.nlp.stats.IntCounter;
-import edu.stanford.nlp.tagger.maxent.MaxentTagger;
-import edu.stanford.nlp.trees.EnglishGrammaticalRelations;
-import edu.stanford.nlp.trees.EnglishGrammaticalStructure;
-import edu.stanford.nlp.trees.GrammaticalRelation;
-import edu.stanford.nlp.trees.GrammaticalStructure;
-import edu.stanford.nlp.trees.TreeGraphNode;
-import edu.stanford.nlp.trees.TypedDependency;
-import edu.stanford.nlp.trees.UniversalEnglishGrammaticalRelations;
-import edu.stanford.nlp.trees.UniversalEnglishGrammaticalStructure;
-import edu.stanford.nlp.trees.international.pennchinese.ChineseGrammaticalRelations;
-import edu.stanford.nlp.trees.international.pennchinese.ChineseGrammaticalStructure;
-import edu.stanford.nlp.util.CoreMap;
+import edu.stanford.nlp.util.Generics;
 import edu.stanford.nlp.util.RuntimeInterruptedException;
 import edu.stanford.nlp.util.StringUtils;
 import edu.stanford.nlp.util.Timing;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.Writer;
-import java.util.*;
-
-import org.statnlp.allan.depner.Classifier;
-import org.statnlp.allan.depner.Dataset;
-
-import static java.util.stream.Collectors.toList;
+import edu.stanford.nlp.util.logging.Redwood;
 
 /**
  * This class defines a transition-based named entity recognizer which makes use
@@ -107,6 +91,7 @@ public class NEReconizer {
 	 * Language used to generate
 	 * {@link edu.stanford.nlp.trees.GrammaticalRelation} instances.
 	 */
+	@SuppressWarnings("unused")
 	private final Language language;
 
 	NEReconizer() {
@@ -123,7 +108,7 @@ public class NEReconizer {
 
 	/**
 	 * Get an integer ID for the given word. This ID can be used to index into
-	 * the embeddings {@link Classifier#E}.
+	 * the embeddings {@link NNERClassifier#E}.
 	 *
 	 * @return An ID for the given word, or an ID referring to a generic
 	 *         "unknown" word if the word is unknown
@@ -702,7 +687,7 @@ public class NEReconizer {
 	private void setupClassifierForTraining(List<Sequence> trainSents, List<Sequence> trainNERs, String embedFile,
 			String preModel) {
 		double[][] E = new double[knownWords.size() + knownPos.size() + knownLabels.size()][config.embeddingSize];
-		double[][] W1 = new double[config.hiddenSize][config.embeddingSize * config.numTokens];
+		double[][] W1 = new double[config.hiddenSize][config.embeddingSize * NEConfig.numTokens];
 		double[] b1 = new double[config.hiddenSize];
 		double[][] W2 = new double[system.numTransitions()][config.hiddenSize];
 
@@ -801,7 +786,7 @@ public class NEReconizer {
 				}
 
 				boolean copyLayer1 = hSize == config.hiddenSize && config.embeddingSize == eSize
-						&& config.numTokens == nTokens;
+						&& NEConfig.numTokens == nTokens;
 				if (copyLayer1) {
 					log.info("Copying parameters W1 && b1...");
 				}
@@ -1212,6 +1197,7 @@ public class NEReconizer {
 		if (props.containsKey("testFile")) {
 			parser.loadModelFile(props.getProperty("model"));
 			loaded = true;
+			System.err.println("##Model:"+loaded);
 			parser.testCoNLL(props.getProperty("testFile"), props.getProperty("outFile"), props.getProperty("evalFile"));
 		}
 	}
