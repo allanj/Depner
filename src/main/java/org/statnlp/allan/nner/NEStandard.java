@@ -50,8 +50,33 @@ public class NEStandard extends NERParsingSystem {
 	@Override
 	public boolean canApply(NEConfiguration c, String t) {
 		// TODO: I should define some NER recognition rules here.
+		//copy the rule from my previous code if I use IOBES encoding
 		int nBuffer = c.getBufferSize();
-		return nBuffer > 0;
+		if (nBuffer <= 0) return false;
+		
+		int s0 = c.getStack(0);
+		String currentLabel = t.substring(2, t.length()-1);
+		if (s0 != NEConfig.NONEXIST){
+			String prevLabel = c.getLabel(s0);
+			if (!prevLabel.equals(NEConfig.NULL)){
+				if(prevLabel.startsWith("B") && currentLabel.startsWith("I") && !prevLabel.substring(1).equals(currentLabel.substring(1)))
+					return false;
+				if(prevLabel.startsWith("I") && currentLabel.startsWith("I") && !prevLabel.substring(1).equals(currentLabel.substring(1)))
+					return false;
+				if(prevLabel.startsWith("O") && currentLabel.startsWith("I"))
+					return false;
+			}else{
+				if(currentLabel.startsWith("I"))
+					return false;
+			}
+		}else{
+			if(currentLabel.startsWith("I"))
+				return false;
+		}
+		
+		
+		
+		return true;
 	}
 
 	@Override

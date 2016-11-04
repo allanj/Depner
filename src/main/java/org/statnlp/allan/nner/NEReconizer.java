@@ -478,7 +478,9 @@ public class NEReconizer {
 			for (int i = 0; i < b1.length; ++i)
 				b1[i] = Double.parseDouble(splits[i]);
 
-			double[][] W2 = new double[nLabel * 2 - 1][hSize];
+			//Be careful about this when implementing
+			//previously is 2*nLabel-1
+			double[][] W2 = new double[nLabel - 1][hSize];
 			for (int j = 0; j < W2[0].length; ++j) {
 				s = input.readLine();
 				splits = s.split(" ");
@@ -802,14 +804,16 @@ public class NEReconizer {
 						b1[i] = Double.parseDouble(splits[i]);
 				}
 
-				boolean copyLayer2 = (nLabel * 2 - 1 == system.numTransitions()) && hSize == config.hiddenSize;
+				//careful about this as well. previously is nLabel * 2 - 1
+				boolean copyLayer2 = (nLabel - 1 == system.numTransitions()) && hSize == config.hiddenSize;
 				if (copyLayer2)
 					log.info("Copying parameters W2...");
 				for (int j = 0; j < hSize; ++j) {
 					s = input.readLine();
 					if (copyLayer2) {
 						splits = s.split(" ");
-						for (int i = 0; i < nLabel * 2 - 1; ++i)
+						//careful about this as well. previously is nLabel * 2 - 1
+						for (int i = 0; i < nLabel - 1; ++i)
 							W2[i][j] = Double.parseDouble(splits[i]);
 					}
 				}
@@ -879,7 +883,7 @@ public class NEReconizer {
 	 *            is written
 	 * @return The LAS score on the dataset
 	 */
-	public double testCoNLL(String testFile, String outFile, String evalFile) {
+	public double testCoNLL(String testFile, String outFile) {
 		log.info("Test File: " + testFile);
 		Timing timer = new Timing();
 		List<Sequence> testSents = new ArrayList<>();
@@ -902,7 +906,7 @@ public class NEReconizer {
 		System.err.printf("OOV Words: %d / %d = %.2f%%\n", numOOVWords, numWords, numOOVWords * 100.0 / numWords);
 
 		List<Sequence> predicted = testSents.stream().map(this::predictInner).collect(toList());
-		Map<String, Double> result = system.evaluate(testSents, predicted, testNERs, evalFile);
+		Map<String, Double> result = system.evaluate(testSents, predicted, testNERs, NEConfig.EVAL_FILE);
 
 		double fscore = result.get("fscore");
 		System.err.printf("F-score = %.6f%n", fscore);
@@ -1194,7 +1198,7 @@ public class NEReconizer {
 			parser.loadModelFile(props.getProperty("model"));
 			loaded = true;
 			System.err.println("##Model:"+loaded);
-			parser.testCoNLL(props.getProperty("testFile"), props.getProperty("outFile"), props.getProperty("evalFile"));
+			parser.testCoNLL(props.getProperty("testFile"), props.getProperty("outFile"));
 		}
 	}
 
