@@ -9,7 +9,6 @@ import java.util.Map;
 import org.statnlp.allan.io.RAWF;
 
 import edu.stanford.nlp.trees.TreebankLanguagePack;
-import edu.stanford.nlp.util.CoreMap;
 import edu.stanford.nlp.util.logging.Redwood;
 
 /**
@@ -67,12 +66,12 @@ public abstract class NERParsingSystem  {
    */
   public abstract String getOracle(NEConfiguration c, Sequence dSeq);
 
-  /**
-   * Determine whether applying the given transition in the given
-   * configuration sequence will leave in us a state in which we can reach
-   * the gold sequence. (Useful for building a dynamic oracle.)
-   */
-  abstract boolean isOracle(NEConfiguration c, String t, Sequence dSeq);
+//  /**
+//   * Determine whether applying the given transition in the given
+//   * configuration sequence will leave in us a state in which we can reach
+//   * the gold sequence. (Useful for building a dynamic oracle.)
+//   */
+//  abstract boolean isOracle(NEConfiguration c, String t, Sequence dSeq);
 
   /**
    * Build an initial parser configuration from the given sentence.
@@ -169,7 +168,7 @@ public abstract class NERParsingSystem  {
 			  Sequence prediction = predictions.get(pos);
 			  Sequence gold = golds.get(pos);
 			  for(int i = 0; i < sent.size(); i++){
-				  pw.println(sent.get(i).word()+" "+ gold.get(i).ner() +" "+ prediction.get(i).ner());
+				  pw.println(sent.get(i)[0]+" "+ gold.get(i)[0] +" "+ prediction.get(i)[0]);
 			  }
 			  pw.println();
 		  }

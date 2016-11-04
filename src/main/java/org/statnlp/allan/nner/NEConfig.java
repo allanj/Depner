@@ -15,7 +15,7 @@ import java.util.function.Function;
  * Defines configuration settings for training and testing the
  * neural-network dependency parser.
  *
- * @see DependencyParser
+ * @see NEReconizer
  *
  * @author Danqi Chen
  * @author Jon Gauthier
