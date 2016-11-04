@@ -7,3 +7,5 @@ lib/stanford-english-corenlp-models-current.jar
 .settings/*
 data/bn/output.conllx
 data/bn/model
+eval/temporary.txt
+
