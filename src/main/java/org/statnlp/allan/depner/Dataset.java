@@ -1,4 +1,4 @@
-
+package org.statnlp.allan.depner;
 /*
 * 	@Author:  Danqi Chen
 * 	@Email:  danqi@cs.stanford.edu
@@ -6,34 +6,34 @@
 * 	@Last Modified:  2014-09-30
 */
 
-package org.statnlp.allan.depner;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Defines a list of training / testing examples in multi-class classification setting.
+ * Defines a list of training / testing examples in multi-class classification
+ * setting.
  *
  * @author Danqi Chen
  */
 
 public class Dataset {
 
-  int n;
-  final int numFeatures, numLabels;
-  final List<Example> examples;
+	public int n;
+	public final int numFeatures, numLabels;
+	public final List<Example> examples;
 
-  Dataset(int numFeatures, int numLabels) {
-    n = 0;
-    this.numFeatures = numFeatures;
-    this.numLabels = numLabels;
-    examples = new ArrayList<>();
-  }
+	public Dataset(int numFeatures, int numLabels) {
+		n = 0;
+		this.numFeatures = numFeatures;
+		this.numLabels = numLabels;
+		examples = new ArrayList<>();
+	}
 
-  public void addExample(List<Integer> feature, List<Integer> label) {
-    Example data = new Example(feature, label);
-    n += 1;
-    examples.add(data);
-  }
+	public void addExample(List<Integer> feature, List<Integer> label) {
+		Example data = new Example(feature, label);
+		n += 1;
+		examples.add(data);
+	}
 
 }

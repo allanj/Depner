@@ -126,9 +126,9 @@ public class NEConfig {
    * Total number of tokens provided as input to the classifier. (Each
    * token is provided in word embedding form.)
    */
-  // TODO: we can figure this out automatically based on features used.
+  // TODO: we can figure this out automatically based on features used. 48 = 18 + 18 +12 = 48
   // Should remove this option once we make feature templates / dynamic features
-  public static final int numTokens = 48;
+  public static final int numTokens = 15;
 
   /**
    * Number of input tokens for which we should compute hidden-layer

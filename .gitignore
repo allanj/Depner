@@ -5,3 +5,4 @@ lib/stanford-english-corenlp-models-current.jar
 *.war
 *.ear
 .settings/*
+data/bn/output.conllx

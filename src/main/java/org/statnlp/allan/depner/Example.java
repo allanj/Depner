@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * @author Christopher Manning
  */
-class Example {
+public class Example {
 
   private final List<Integer> feature;
   private final List<Integer> label;

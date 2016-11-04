@@ -147,7 +147,7 @@ public abstract class NERParsingSystem  {
     //currently, we dun have anything to plugin to result. 
     //just show the conll eval script result
     conlleval(sents, predictions, golds, evalOut);
-
+    //TODO: should return something, at least the f-score.
     return result;
   }
 
@@ -177,5 +177,21 @@ public abstract class NERParsingSystem  {
 		  e.printStackTrace();
 	  }
   }
+  
+  
+	public double getAcc(List<Sequence> sentences, List<Sequence> predictions, List<Sequence> golds) {
+		int corr = 0;
+		int total = 0;
+		for (int pos = 0; pos < sentences.size(); pos++) {
+			Sequence prediction = predictions.get(pos);
+			Sequence gold = golds.get(pos);
+			for (int i = 0; i < gold.size(); i++) {
+				if (gold.get(i)[0].equals(prediction.get(i)[0]))
+					corr++;
+				total++;
+			}
+		}
+		return corr*1.0/total;
+	}
 
 }
