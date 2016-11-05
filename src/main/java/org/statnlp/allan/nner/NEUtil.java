@@ -134,7 +134,7 @@ public class NEUtil {
 	}
 
 	public static void loadConllFile(String inFile, List<Sequence> sents, List<Sequence> ners, boolean unlabeled,
-			boolean cPOS) {
+			boolean cPOS, boolean IOBES) {
 
 		BufferedReader reader = null;
 		try {
@@ -149,6 +149,9 @@ public class NEUtil {
 					if (sent.size() > 0) {
 						CoreLabel[] nerArr = new CoreLabel[nerSeq.size()];
 						nerSeq.toArray(nerArr);
+						if(IOBES) {
+							encodeIOBES(nerArr);
+						}
 						ners.add(new NESeq(nerArr));
 						CoreLabel[] sentArr = new CoreLabel[sent.size()];
 						sent.toArray(sentArr);
@@ -182,9 +185,36 @@ public class NEUtil {
 	}
 
 	public static void loadConllFile(String inFile, List<Sequence> sents, List<Sequence> ners) {
-		loadConllFile(inFile, sents, ners, false, false);
+		loadConllFile(inFile, sents, ners, false, false, false);
+	}
+	
+	public static void loadConllFile(String inFile, List<Sequence> sents, List<Sequence> ners, boolean IOBESencoding) {
+		loadConllFile(inFile, sents, ners, false, false, IOBESencoding);
 	}
 
+	private static void encodeIOBES(CoreLabel[] nes){
+		for(int i=0;i<nes.length;i++){
+			String curr = nes[i].ner();
+			if(curr.startsWith("B")){
+				if((i+1)<nes.length){
+					if(!nes[i+1].ner().startsWith("I")){
+						nes[i].setNER("S"+curr.substring(1));
+					} //else remains the same
+				}else{
+					nes[i].setNER("S"+curr.substring(1));
+				}
+			}else if(curr.startsWith("I")){
+				if((i+1)<nes.length){
+					if(!nes[i+1].ner().startsWith("I")){
+						nes[i].setNER("E"+curr.substring(1));
+					}
+				}else{
+					nes[i].setNER("E"+curr.substring(1));
+				}
+			}
+		}
+	}
+	
 	public static void writeConllFile(String outFile, List<Sequence> sentences, List<Sequence> ners) {
 		try {
 			PrintWriter output = IOUtils.getPrintWriter(outFile);
@@ -215,4 +245,6 @@ public class NEUtil {
 	public static void printTreeStats(List<Sequence> ners) {
 		printNERStats("", ners);
 	}
+	
+	
 }

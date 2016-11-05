@@ -576,13 +576,13 @@ public class NEReconizer {
 
 		List<Sequence> trainSents = new ArrayList<>();
 		List<Sequence> trainNEs = new ArrayList<>();
-		NEUtil.loadConllFile(trainFile, trainSents, trainNEs, config.unlabeled, config.cPOS);
+		NEUtil.loadConllFile(trainFile, trainSents, trainNEs, config.unlabeled, config.cPOS, config.IOBESencoding);
 		NEUtil.printNERStats("Train", trainNEs);
 
 		List<Sequence> devSents = new ArrayList<>();
 		List<Sequence> devNERs = new ArrayList<>();
 		if (devFile != null) {
-			NEUtil.loadConllFile(devFile, devSents, devNERs, config.unlabeled, config.cPOS);
+			NEUtil.loadConllFile(devFile, devSents, devNERs, config.unlabeled, config.cPOS, config.IOBESencoding);
 			NEUtil.printNERStats("Dev", devNERs);
 		}
 		genDictionaries(trainSents, trainNEs);
@@ -888,7 +888,7 @@ public class NEReconizer {
 		Timing timer = new Timing();
 		List<Sequence> testSents = new ArrayList<>();
 		List<Sequence> testNERs = new ArrayList<>();
-		NEUtil.loadConllFile(testFile, testSents, testNERs, config.unlabeled, config.cPOS);
+		NEUtil.loadConllFile(testFile, testSents, testNERs, config.unlabeled, config.cPOS, config.IOBESencoding);
 
 		// count how much to parse
 		int numWords = 0;

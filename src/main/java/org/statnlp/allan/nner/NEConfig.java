@@ -175,6 +175,11 @@ public class NEConfig {
 	public boolean cPOS = false;
 
 	/**
+	 * Use IOBES encoding schema. 
+	 */
+	public boolean IOBESencoding = true;
+	
+	/**
 	 * Exclude punctuations in evaluation if noPunc = true.
 	 */
 	public boolean noPunc = true;
@@ -239,6 +244,7 @@ public class NEConfig {
 		saveIntermediate = PropertiesUtils.getBool(props, "saveIntermediate", saveIntermediate);
 		unlabeled = PropertiesUtils.getBool(props, "unlabeled", unlabeled);
 		cPOS = PropertiesUtils.getBool(props, "cPOS", cPOS);
+		IOBESencoding = PropertiesUtils.getBool(props, "iobes", IOBESencoding);
 		noPunc = PropertiesUtils.getBool(props, "noPunc", noPunc);
 		doWordEmbeddingGradUpdate = PropertiesUtils.getBool(props, "doWordEmbeddingGradUpdate",
 				doWordEmbeddingGradUpdate);
