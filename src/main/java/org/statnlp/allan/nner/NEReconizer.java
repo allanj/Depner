@@ -131,46 +131,46 @@ public class NEReconizer {
 		// the current feature list.
 		// Not specify the initial capacity will make the list dynamically
 		// resize
-		List<Integer> fWord = new ArrayList<>(6);
-		List<Integer> fPos = new ArrayList<>(6);
-		List<Integer> fLabel = new ArrayList<>(3);
-		for (int j = 2; j >= 0; --j) {
+		List<Integer> fWord = new ArrayList<>(8);
+		List<Integer> fPos = new ArrayList<>(8);
+		List<Integer> fLabel = new ArrayList<>(4);
+		for (int j = 3; j >= 0; --j) {
 			int index = c.getStack(j);
 			fWord.add(getWordID(c.getWord(index)));
 			fPos.add(getPosID(c.getPOS(index)));
 			fLabel.add(getLabelID(c.getLabel(index)));
 		}
-		for (int j = 0; j <= 2; ++j) {
+		for (int j = 0; j <= 3; ++j) {
 			int index = c.getBuffer(j);
 			fWord.add(getWordID(c.getWord(index)));
 			fPos.add(getPosID(c.getPOS(index)));
 		}
 
-		List<Integer> feature = new ArrayList<>(15);
+		List<Integer> feature = new ArrayList<>(20);
 		feature.addAll(fWord);
 		feature.addAll(fPos);
 		feature.addAll(fLabel);
 		return feature;
 	}
 
-	private static final int POS_OFFSET = 6;
+	private static final int POS_OFFSET = 8;
 	private static final int NE_OFFSET = 12;
 
 	private int[] getFeatureArray(NEConfiguration c) {
-		int[] feature = new int[NEConfig.numTokens]; // positions 0-5 hold fWord, 6-11 hold fPos, 12-14 hold fLabel 6+6+3
-		for (int j = 2; j >= 0; --j) {
+		int[] feature = new int[NEConfig.numTokens]; // positions 0-7 hold fWord, 8-15 hold fPos, 16-19 hold fLabel 6+6+3
+		for (int j = 3; j >= 0; --j) {
 			int index = c.getStack(j);
-			feature[2 - j] = getWordID(c.getWord(index));
-			feature[POS_OFFSET + (2 - j)] = getPosID(c.getPOS(index));
+			feature[3 - j] = getWordID(c.getWord(index));
+			feature[POS_OFFSET + (3 - j)] = getPosID(c.getPOS(index));
 		}
-		for (int j = 0; j <= 2; ++j) {
+		for (int j = 0; j <= 3; ++j) {
 			int index = c.getBuffer(j);
-			feature[3 + j] = getWordID(c.getWord(index));
-			feature[POS_OFFSET + 3 + j] = getPosID(c.getPOS(index));
+			feature[4 + j] = getWordID(c.getWord(index));
+			feature[POS_OFFSET + 4 + j] = getPosID(c.getPOS(index));
 		}
-		for (int j = 2; j >= 0; --j) {
+		for (int j = 3; j >= 0; --j) {
 			int index = c.getStack(j);
-			feature[NE_OFFSET + (2 - j)] = getLabelID(c.getLabel(index));
+			feature[NE_OFFSET + (3 - j)] = getLabelID(c.getLabel(index));
 		}
 		return feature;
 	}
@@ -1179,6 +1179,12 @@ public class NEReconizer {
 	 * left3words-distsim.tagger</td>
 	 * <td>Only applicable for testing with <tt>-textFile</tt>. Path to a
 	 * part-of-speech tagger to use to pre-tag the raw sentences before parsing.
+	 * </td>
+	 * </tr>
+	 * <tr>
+	 * <td><tt>&#8209;iobes</tt></td>
+	 * <td>truer</td>
+	 * <td>IOBES encoding in NER
 	 * </td>
 	 * </tr>
 	 * </table>

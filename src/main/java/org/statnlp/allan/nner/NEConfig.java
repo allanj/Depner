@@ -134,7 +134,7 @@ public class NEConfig {
 	// 18 + 18 +12 = 48
 	// Should remove this option once we make feature templates / dynamic
 	// features
-	public static final int numTokens = 15;
+	public static final int numTokens = 20;
 
 	/**
 	 * Number of input tokens for which we should compute hidden-layer unit
