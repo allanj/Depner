@@ -590,7 +590,7 @@ public class NEReconizer {
 		// NOTE: remove -NULL-, and the pass it to ParsingSystem
 		List<String> lDict = new ArrayList<>(knownLabels);
 		lDict.remove(0);
-		system = new NEStandard(config.tlp, lDict, true);
+		system = new NEStandard(config.tlp, lDict, true, config.IOBESencoding);
 
 		// Initialize a classifier; prepare for training
 		setupClassifierForTraining(trainSents, trainNEs, embedFile, preModel);
@@ -934,7 +934,7 @@ public class NEReconizer {
 		List<String> lDict = new ArrayList<>(knownLabels);
 		lDict.remove(0);
 
-		system = new NEStandard(config.tlp, lDict, verbose);
+		system = new NEStandard(config.tlp, lDict, verbose, config.IOBESencoding);
 
 		// Pre-compute matrix multiplications
 		if (config.numPreComputed > 0) {

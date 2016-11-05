@@ -13,8 +13,11 @@ import edu.stanford.nlp.trees.TreebankLanguagePack;
  */
 public class NEStandard extends NERParsingSystem {
 
-	public NEStandard(TreebankLanguagePack tlp, List<String> labels, boolean verbose) {
+	boolean iobes;
+	
+	public NEStandard(TreebankLanguagePack tlp, List<String> labels, boolean verbose, boolean IOBESeconding) {
 		super(tlp, labels, verbose);
+		this.iobes = IOBESeconding;
 	}
 
 	@Override
@@ -59,18 +62,34 @@ public class NEStandard extends NERParsingSystem {
 		if (s0 != NEConfig.NONEXIST){
 			String prevLabel = c.getLabel(s0);
 			if (!prevLabel.equals(NEConfig.NULL)){
-				if(prevLabel.startsWith("B") && currentLabel.startsWith("I") && !prevLabel.substring(1).equals(currentLabel.substring(1)))
-					return false;
-				if(prevLabel.startsWith("I") && currentLabel.startsWith("I") && !prevLabel.substring(1).equals(currentLabel.substring(1)))
-					return false;
-				if(prevLabel.startsWith("O") && currentLabel.startsWith("I"))
-					return false;
+				if(prevLabel.startsWith("I")){
+					if(currentLabel.startsWith("I") && !prevLabel.substring(1).equals(currentLabel.substring(1))) return false;
+					if(currentLabel.startsWith("E") && !prevLabel.substring(1).equals(currentLabel.substring(1))) return false;
+					if(iobes && (currentLabel.startsWith("O") || currentLabel.startsWith("B") || currentLabel.startsWith("S")  ) ) return false;
+					
+				}else if(prevLabel.equals("O")){
+					if(currentLabel.startsWith("I") || currentLabel.startsWith("E")) return false;
+					
+				}else if(prevLabel.startsWith("B")){
+					if(currentLabel.startsWith("I")  && !prevLabel.substring(1).equals(currentLabel.substring(1)) ) return false;
+					if(currentLabel.startsWith("E")  && !prevLabel.substring(1).equals(currentLabel.substring(1)) ) return false;
+					if(iobes && ( currentLabel.equals("O") || currentLabel.equals("B") || currentLabel.equals("S") )  ) return false;
+					
+				}else if(prevLabel.startsWith("E")){
+					if(currentLabel.startsWith("I") || currentLabel.startsWith("E")) return false;
+					
+				}else if(prevLabel.startsWith("S")){
+					if(currentLabel.startsWith("I") || currentLabel.startsWith("E")) return false;
+					
+				}else{
+					throw new RuntimeException("Unknown type "+prevLabel+" in network compilation");
+				}
 			}else{
-				if(currentLabel.startsWith("I"))
+				if(currentLabel.startsWith("I") ||  currentLabel.startsWith("E"))
 					return false;
 			}
 		}else{
-			if(currentLabel.startsWith("I"))
+			if(currentLabel.startsWith("I") || currentLabel.startsWith("E"))
 				return false;
 		}
 		
