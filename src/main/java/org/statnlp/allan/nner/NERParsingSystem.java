@@ -153,7 +153,7 @@ public abstract class NERParsingSystem {
 		// currently, we dun have anything to plugin to result.
 		// just show the conll eval script result
 		double fscore = conlleval(sents, predictions, golds, evalOut);
-		double acc = getAcc(sents, predictions, golds);
+		double acc = getAcc(sents, predictions, golds)*100;
 		result.put("fscore", fscore);
 		result.put("accuracy", acc);
 		return result;
@@ -176,7 +176,12 @@ public abstract class NERParsingSystem {
 				Sequence prediction = predictions.get(pos);
 				Sequence gold = golds.get(pos);
 				for (int i = 0; i < sent.size(); i++) {
-					pw.println(sent.get(i)[0] + " " + gold.get(i)[0] + " " + prediction.get(i)[0]);
+					String pred = prediction.get(i)[0];
+					if (pred.startsWith("S"))
+						pred = "B" + pred.substring(1);
+					if (pred.startsWith("E"))
+						pred = "I" + pred.substring(1);
+					pw.println(sent.get(i)[0] + " " + gold.get(i)[0] + " " + pred);
 				}
 				pw.println();
 			}
@@ -209,6 +214,7 @@ public abstract class NERParsingSystem {
 			BufferedReader in = new BufferedReader(new InputStreamReader(process.getInputStream()));
 			String line;
 			while ((line = in.readLine()) != null ) {
+				System.out.println(line);
 				if (line.startsWith("accuracy")){
 					String[] vals = line.split("\\s+");
 					fscore = Double.parseDouble(vals[vals.length-1]);

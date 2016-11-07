@@ -55,7 +55,7 @@ public class NEConfig {
 	/**
 	 * The system to run the script.
 	 */
-	public static final String OS = "mac";
+	public static String OS = "mac";
 
 	/**
 	 * The language being parsed.

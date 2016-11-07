@@ -32,7 +32,7 @@ public class NEUtil {
 	private NEUtil() {
 	} // static methods
 
-	private static Random random;
+	private static Random random = new Random(1234);
 
 	/**
 	 * Normalize word embeddings by setting mean = rMean, std = rStd

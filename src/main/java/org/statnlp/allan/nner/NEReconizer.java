@@ -888,7 +888,7 @@ public class NEReconizer {
 		Timing timer = new Timing();
 		List<Sequence> testSents = new ArrayList<>();
 		List<Sequence> testNERs = new ArrayList<>();
-		NEUtil.loadConllFile(testFile, testSents, testNERs, config.unlabeled, config.cPOS, config.IOBESencoding);
+		NEUtil.loadConllFile(testFile, testSents, testNERs, config.unlabeled, config.cPOS, false); //no iobes encoding when we test the file
 
 		// count how much to parse
 		int numWords = 0;
@@ -905,11 +905,11 @@ public class NEReconizer {
 		}
 		System.err.printf("OOV Words: %d / %d = %.2f%%\n", numOOVWords, numWords, numOOVWords * 100.0 / numWords);
 
-		List<Sequence> predicted = testSents.stream().map(this::predictInner).collect(toList());
+		List<Sequence> predicted = testSents.stream().map(this::predictInner).collect(toList()); // jdk 8 new features
 		Map<String, Double> result = system.evaluate(testSents, predicted, testNERs, NEConfig.EVAL_FILE);
 
 		double fscore = result.get("fscore");
-		System.err.printf("F-score = %.6f%n", fscore);
+		System.err.printf("F-score = %.2f%n", fscore);
 
 		long millis = timer.stop();
 		double wordspersec = numWords / (((double) millis) / 1000);
@@ -1192,7 +1192,7 @@ public class NEReconizer {
 	public static void main(String[] args) {
 		Properties props = StringUtils.argsToProperties(args, numArgs);
 		NEReconizer parser = new NEReconizer(props);
-
+		NEConfig.OS = props.getProperty("os").equals("windows")? "windows":"mac";
 		// Train with CoNLL-X data
 		if (props.containsKey("trainFile"))
 			parser.train(props.getProperty("trainFile"), props.getProperty("devFile"), props.getProperty("model"),
