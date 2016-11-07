@@ -8,4 +8,6 @@ lib/stanford-english-corenlp-models-current.jar
 data/bn/output.conllx
 data/bn/model
 eval/temporary.txt
-
+data/voa/output.conllx
+data/voa/model
+embeddings/*
