@@ -703,6 +703,7 @@ public class NNERClassifier  {
 
     for (int i = 0; i < config.hiddenSize; ++i) {
       hidden[i] += b1[i];
+      //modify the activation function here for future work
       hidden[i] = hidden[i] * hidden[i] * hidden[i];  // cube nonlinearity
     }
 
