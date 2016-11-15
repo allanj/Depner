@@ -10,4 +10,5 @@ data/bn/model
 eval/temporary.txt
 data/voa/output.conllx
 data/voa/model
+data/conll2003/*
 embeddings/*
