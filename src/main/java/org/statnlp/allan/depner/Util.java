@@ -148,7 +148,7 @@ public class Util  {
 
       for (String line : IOUtils.getLineIterable(reader, false)) {
         String[] splits = line.split("\t");
-        if (splits.length < 10) {
+        if (splits.length < 11) {
           if (sentenceTokens.size() > 0) {
             trees.add(tree);
             CoreMap sentence = new CoreLabel();
@@ -161,7 +161,7 @@ public class Util  {
           String word = splits[1],
                   pos = cPOS ? splits[3] : splits[4],
                   depType = splits[7];
-
+          String entity = splits.length >= 11 ?  splits[10] : null;
           int head = -1;
           try {
             head = Integer.parseInt(splits[6]);
@@ -172,10 +172,11 @@ public class Util  {
 
           CoreLabel token = tf.makeToken(word, 0, 0);
           token.setTag(pos);
+          token.setNER(entity);
           token.set(CoreAnnotations.CoNLLDepParentIndexAnnotation.class, head);
           token.set(CoreAnnotations.CoNLLDepTypeAnnotation.class, depType);
           sentenceTokens.add(token);
-
+          
           if (!unlabeled)
             tree.add(head, depType);
           else
@@ -210,9 +211,17 @@ public class Util  {
         for (int j = 1, size = tokens.size(); j <= size; ++j)
         {
           CoreLabel token = tokens.get(j - 1);
-          output.printf("%d\t%s\t_\t%s\t%s\t_\t%d\t%s\t_\t_%n",
-              j, token.word(), token.tag(), token.tag(),
-              tree.getHead(j), tree.getLabel(j));
+          String entity = token.ner();
+          if (entity != null) {
+        	  output.printf("%d\t%s\t_\t%s\t%s\t_\t%d\t%s\t_\t_\t%s%n",
+                      j, token.word(), token.tag(), token.tag(),
+                      tree.getHead(j), tree.getLabel(j), entity);
+          }else{
+        	  output.printf("%d\t%s\t_\t%s\t%s\t_\t%d\t%s\t_\t_%n",
+                      j, token.word(), token.tag(), token.tag(),
+                      tree.getHead(j), tree.getLabel(j));
+          }
+          
         }
         output.println();
       }

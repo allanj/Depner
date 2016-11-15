@@ -75,7 +75,7 @@ public class DependencyParser  {
 
   /** A logger for this class */
   private static Redwood.RedwoodChannels log = Redwood.channels(DependencyParser.class);
-  public static final String DEFAULT_MODEL = "edu/stanford/nlp/models/parser/nndep/english_UD.gz";
+  public static final String DEFAULT_MODEL = "edu/stanford/nlp/models/parser/nndep/english_SD.gz";
 
   /**
    * Words, parts of speech, and dependency relation labels which were
@@ -1076,7 +1076,7 @@ public class DependencyParser  {
     List<CoreMap> testSents = new ArrayList<>();
     List<DependencyTree> testTrees = new ArrayList<>();
     Util.loadConllFile(testFile, testSents, testTrees, config.unlabeled, config.cPOS);
-
+    System.err.printf("Number of test sentences: %d\n", testSents.size());
     // count how much to parse
     int numWords = 0;
     int numOOVWords = 0;
@@ -1113,6 +1113,31 @@ public class DependencyParser  {
     return las;
   }
 
+  private void parseCoNLLXFile(String testFile, String outFile){
+    log.info("Test File: " + testFile);
+    List<CoreMap> testSents = new ArrayList<>();
+    List<DependencyTree> testTrees = new ArrayList<>();
+    Util.loadConllFile(testFile, testSents, testTrees, true, false);
+    System.err.printf("Number of test sentences: %d\n", testSents.size());
+    // count how much to parse
+    int numWords = 0;
+    int numOOVWords = 0;
+    for (CoreMap testSent : testSents) {
+      List<CoreLabel> tokens = testSent.get(CoreAnnotations.TokensAnnotation.class);
+      for (CoreLabel token : tokens) {
+        String word = token.word();
+        numWords += 1;
+        if (!wordIDs.containsKey(word))
+          numOOVWords += 1;
+      }
+    }
+    System.err.printf("OOV Words: %d / %d = %.2f%%\n", numOOVWords, numWords, numOOVWords * 100.0 / numWords);
+    List<DependencyTree> predicted = testSents.stream().map(this::predictInner).collect(toList());
+    if (outFile != null) {
+        Util.writeConllFile(outFile, testSents, predicted);
+    }
+  }
+  
   private void parseTextFile(BufferedReader input, PrintWriter output) {
     DocumentPreprocessor preprocessor = new DocumentPreprocessor(input);
     preprocessor.setSentenceFinalPuncWords(config.tlp.sentenceFinalPunctuationWords());
@@ -1265,6 +1290,12 @@ public class DependencyParser  {
       parser.testCoNLL(props.getProperty("testFile"), props.getProperty("outFile"));
     }
 
+    if (props.containsKey("conllFile")) {
+	 parser.loadModelFile(props.getProperty("model"));
+     loaded = true;
+     parser.parseCoNLLXFile(props.getProperty("conllFile"), props.getProperty("outFile"));
+    }
+    
     // Parse raw text data
     if (props.containsKey("textFile")) {
       if (!loaded) {
