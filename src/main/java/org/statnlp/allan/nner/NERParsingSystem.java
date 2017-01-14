@@ -69,14 +69,14 @@ public abstract class NERParsingSystem {
 	 *            Gold sequence which parser needs to reach
 	 * @return Transition string
 	 */
-	public abstract String getOracle(NEConfiguration c, Sequence dSeq);
+	public abstract String getOracle(NEConfiguration c, NEDependencyTree dTree, Sequence dner);
 
 	// /**
 	// * Determine whether applying the given transition in the given
 	// * configuration sequence will leave in us a state in which we can reach
 	// * the gold sequence. (Useful for building a dynamic oracle.)
 	// */
-	// abstract boolean isOracle(NEConfiguration c, String t, Sequence dSeq);
+	//abstract boolean isOracle(NEConfiguration c, String t, Sequence dner, DependencyTree dTree);
 
 	/**
 	 * Build an initial parser configuration from the given sentence.

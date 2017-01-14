@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+
 import edu.stanford.nlp.io.IOUtils;
 import edu.stanford.nlp.io.RuntimeIOException;
 import edu.stanford.nlp.ling.CoreLabel;
@@ -133,7 +134,7 @@ public class NEUtil {
 		return input.subList(0, subsetSize);
 	}
 
-	public static void loadConllFile(String inFile, List<Sequence> sents, List<Sequence> ners, boolean unlabeled,
+	public static void loadConllFile(String inFile, List<NEDependencyTree> trees, List<Sequence> sents, List<Sequence> ners, boolean unlabeled,
 			boolean cPOS, boolean IOBES) {
 
 		BufferedReader reader = null;
@@ -142,7 +143,8 @@ public class NEUtil {
 
 			List<CoreLabel> sent = new ArrayList<>();
 			List<CoreLabel> nerSeq = new ArrayList<>();
-
+			NEDependencyTree tree = new NEDependencyTree();
+			
 			for (String line : IOUtils.getLineIterable(reader, false)) {
 				String[] splits = line.split("\t");
 				if (splits.length < 10) {
@@ -153,15 +155,18 @@ public class NEUtil {
 							encodeIOBES(nerArr);
 						}
 						ners.add(new NESeq(nerArr));
+						trees.add(tree);
 						CoreLabel[] sentArr = new CoreLabel[sent.size()];
 						sent.toArray(sentArr);
 						sents.add(new Sent(sentArr));
 						sent = new ArrayList<>();
+						tree = new NEDependencyTree();
 						nerSeq = new ArrayList<>();
 					}
 				} else {
 					String word = splits[1], pos = cPOS ? splits[3] : splits[4], label = splits[10];
-
+					int head = Integer.parseInt(splits[6]);
+					
 					CoreLabel token = new CoreLabel();
 					token.setWord(word);
 					token.setTag(pos);
@@ -171,10 +176,13 @@ public class NEUtil {
 					if (!unlabeled) {
 						nerToken.setNER(label);
 						nerSeq.add(nerToken);
+						tree.add(head, NEConfig.UNKNOWN);
 					} else {
 						nerToken.setNER(NEConfig.UNKNOWN); // unknown ne type
 						nerSeq.add(nerToken);
+						tree.add(head, NEConfig.UNKNOWN);
 					}
+					
 				}
 			}
 		} catch (IOException e) {
@@ -184,16 +192,16 @@ public class NEUtil {
 		}
 	}
 
-	public static void loadConllFile(String inFile, List<Sequence> sents, List<Sequence> ners) {
-		loadConllFile(inFile, sents, ners, false, false, false);
+	public static void loadConllFile(String inFile, List<Sequence> sents, List<Sequence> ners, List<NEDependencyTree> trees) {
+		loadConllFile(inFile, trees, sents, ners, false, false, false);
 	}
 	
-	public static void loadConllFile(String inFile, List<Sequence> sents, List<Sequence> ners, boolean IOBESencoding) {
-		loadConllFile(inFile, sents, ners, false, false, IOBESencoding);
+	public static void loadConllFile(String inFile, List<Sequence> sents, List<Sequence> ners, List<NEDependencyTree> trees, boolean IOBESencoding) {
+		loadConllFile(inFile, trees, sents, ners, false, false, IOBESencoding);
 	}
 
 	private static void encodeIOBES(CoreLabel[] nes){
-		for(int i=0;i<nes.length;i++){
+		for(int i = 0; i < nes.length;i++){
 			String curr = nes[i].ner();
 			if(curr.startsWith("B")){
 				if((i+1)<nes.length){
@@ -242,9 +250,30 @@ public class NEUtil {
 		System.err.printf("#NER sents: %d%n", nNER);
 	}
 
-	public static void printTreeStats(List<Sequence> ners) {
-		printNERStats("", ners);
-	}
+	
+	public static void printTreeStats(String str, List<NEDependencyTree> trees)
+	  {
+	    log.info(NEConfig.SEPARATOR + " " + str);
+	    int nTrees = trees.size();
+	    int nonTree = 0;
+	    int multiRoot = 0;
+	    int nonProjective = 0;
+	    for (NEDependencyTree tree : trees) {
+	      if (!tree.isTree())
+	        ++nonTree;
+	      else
+	      {
+	        if (!tree.isProjective())
+	          ++nonProjective;
+	        if (!tree.isSingleRoot())
+	          ++multiRoot;
+	      }
+	    }
+	    System.err.printf("#Trees: %d%n", nTrees);
+	    System.err.printf("%d tree(s) are illegal (%.2f%%).%n", nonTree, nonTree * 100.0 / nTrees);
+	    System.err.printf("%d tree(s) are legal but have multiple roots (%.2f%%).%n", multiRoot, multiRoot * 100.0 / nTrees);
+	    System.err.printf("%d tree(s) are legal but not projective (%.2f%%).%n", nonProjective, nonProjective * 100.0 / nTrees);
+	  }
 	
 	
 }

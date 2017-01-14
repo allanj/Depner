@@ -3,6 +3,7 @@ package org.statnlp.allan.nner;
 import java.util.ArrayList;
 import java.util.List;
 
+
 /**
  * Describe the current configuration of a nNER.
  *
@@ -18,11 +19,13 @@ public class NEConfiguration {
 
 	final Sequence ners;
 	final Sequence sent;
+	final NEDependencyTree tree;
 
 	public NEConfiguration(NEConfiguration config) {
 		stack = new ArrayList<>(config.stack);
 		buffer = new ArrayList<>(config.buffer);
 		ners = new NESeq(config.ners);
+		tree = new NEDependencyTree(config.tree);
 		sent = new Sent(config.sent);
 	}
 
@@ -30,6 +33,7 @@ public class NEConfiguration {
 		this.stack = new ArrayList<>();
 		this.buffer = new ArrayList<>();
 		this.ners = new NESeq(sentence.size());
+		this.tree = new NEDependencyTree();
 		this.sent = sentence;
 	}
 
@@ -76,6 +80,10 @@ public class NEConfiguration {
 		return sent.size();
 	}
 
+	 public int getHead(int k) {
+		 return tree.getHead(k);
+	 }
+	
 	/**
 	 * @param k
 	 *            Word index (indexed from 0)
@@ -121,6 +129,59 @@ public class NEConfiguration {
 		return k < 0 || k >= sent.size() ? NEConfig.NULL : sent.get(k)[1];
 	}
 
+	public void addArc(int h, int t, String l) {
+	    tree.set(t, h, l);
+	}
+	
+	public int getLeftChild(int k, int cnt) {
+	    if (k < 0 || k > tree.n)
+	      return NEConfig.NONEXIST;
+
+	    int c = 0;
+	    for (int i = 1; i < k; ++i)
+	      if (tree.getHead(i) == k)
+	        if ((++c) == cnt)
+	          return i;
+	    return NEConfig.NONEXIST;
+	  }
+
+	  public int getLeftChild(int k) {
+	    return getLeftChild(k, 1);
+	  }
+
+	  public int getRightChild(int k, int cnt) {
+	    if (k < 0 || k > tree.n)
+	      return NEConfig.NONEXIST;
+
+	    int c = 0;
+	    for (int i = tree.n; i > k; --i)
+	      if (tree.getHead(i) == k)
+	        if ((++c) == cnt)
+	          return i;
+	    return NEConfig.NONEXIST;
+	  }
+
+	  public int getRightChild(int k) {
+	    return getRightChild(k, 1);
+	  }
+
+
+	  public boolean hasOtherChild(int k, NEDependencyTree goldTree) {
+	    for (int i = 1; i <= tree.n; ++i)
+	      if (goldTree.getHead(i) == k && tree.getHead(i) != k) return true;
+	    return false;
+	  }
+
+	  public int getLeftValency(int k) {
+	    if (k < 0 || k > tree.n)
+	      return NEConfig.NONEXIST;
+	    int cnt = 0;
+	    for (int i = 1; i < k; ++i)
+	      if (tree.getHead(i) == k)
+	        ++cnt;
+	    return cnt;
+	  }
+	
 	/**
 	 * Returns a string that concatenates all elements on the stack and buffer,
 	 * as well as named entities

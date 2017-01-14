@@ -14,7 +14,6 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 
-import org.statnlp.allan.depner.Config;
 import org.statnlp.allan.depner.Dataset;
 
 import edu.stanford.nlp.international.Language;
@@ -123,7 +122,7 @@ public class NEReconizer {
 	}
 
 	public int getLabelID(String s) {
-		return labelIDs.containsKey(s) ? labelIDs.get(s) : labelIDs.get(Config.UNKNOWN);
+		return labelIDs.containsKey(s) ? labelIDs.get(s) : labelIDs.get(NEConfig.UNKNOWN);
 	}
 
 	public List<Integer> getFeatures(NEConfiguration c) {
@@ -175,7 +174,7 @@ public class NEReconizer {
 		return feature;
 	}
 
-	public Dataset genTrainExamples(List<Sequence> sents, List<Sequence> ners) {
+	public Dataset genTrainExamples(List<Sequence> sents, List<Sequence> ners , List<NEDependencyTree> trees) {
 		int numTrans = system.numTransitions();
 		Dataset ret = new Dataset(NEConfig.numTokens, numTrans);
 
@@ -192,7 +191,7 @@ public class NEReconizer {
 			}
 			NEConfiguration c = system.initialConfiguration(sents.get(i));
 			while (!system.isTerminal(c)) {
-				String oracle = system.getOracle(c, ners.get(i));
+				String oracle = system.getOracle(c, trees.get(i), ners.get(i));
 				List<Integer> feature = getFeatures(c);
 				List<Integer> label = new ArrayList<>();
 				for (int j = 0; j < numTrans; ++j) {
@@ -576,14 +575,18 @@ public class NEReconizer {
 
 		List<Sequence> trainSents = new ArrayList<>();
 		List<Sequence> trainNEs = new ArrayList<>();
-		NEUtil.loadConllFile(trainFile, trainSents, trainNEs, config.unlabeled, config.cPOS, config.IOBESencoding);
+		List<NEDependencyTree> trainTrees = new ArrayList<>();
+		NEUtil.loadConllFile(trainFile, trainTrees, trainSents, trainNEs, config.unlabeled, config.cPOS, config.IOBESencoding);
 		NEUtil.printNERStats("Train", trainNEs);
+		NEUtil.printTreeStats("Train", trainTrees);
 
 		List<Sequence> devSents = new ArrayList<>();
 		List<Sequence> devNERs = new ArrayList<>();
+		List<NEDependencyTree> devTrees = new ArrayList<>();
 		if (devFile != null) {
-			NEUtil.loadConllFile(devFile, devSents, devNERs, config.unlabeled, config.cPOS, config.IOBESencoding);
+			NEUtil.loadConllFile(devFile, devTrees, devSents, devNERs, config.unlabeled, config.cPOS, config.IOBESencoding);
 			NEUtil.printNERStats("Dev", devNERs);
+			NEUtil.printTreeStats("Dev", devTrees);
 		}
 		genDictionaries(trainSents, trainNEs);
 
@@ -593,7 +596,7 @@ public class NEReconizer {
 		system = new NEStandard(config.tlp, lDict, true, config.IOBESencoding);
 
 		// Initialize a classifier; prepare for training
-		setupClassifierForTraining(trainSents, trainNEs, embedFile, preModel);
+		setupClassifierForTraining(trainSents, trainTrees, trainNEs, embedFile, preModel);
 
 		log.info(NEConfig.SEPARATOR);
 		config.printParameters();
@@ -606,7 +609,11 @@ public class NEReconizer {
 
 		for (int iter = 0; iter < config.maxIter; ++iter) {
 			log.info("##### Iteration " + iter);
-
+			
+			for (int idx = 0; idx < trainSents.size(); idx++) {
+				
+			}
+			
 			NNERClassifier.Cost cost = classifier.computeCostFunction(config.batchSize, config.regParameter,
 					config.dropProb);
 			log.info("Cost = " + cost.getCost() + ", Correct(%) = " + cost.getPercentCorrect());
@@ -682,7 +689,7 @@ public class NEReconizer {
 	/**
 	 * Prepare a classifier for training with the given dataset.
 	 */
-	private void setupClassifierForTraining(List<Sequence> trainSents, List<Sequence> trainNERs, String embedFile,
+	private void setupClassifierForTraining(List<Sequence> trainSents, List<NEDependencyTree> trainTrees, List<Sequence> trainNERs, String embedFile,
 			String preModel) {
 		double[][] E = new double[knownWords.size() + knownPos.size() + knownLabels.size()][config.embeddingSize];
 		double[][] W1 = new double[config.hiddenSize][config.embeddingSize * NEConfig.numTokens];
@@ -822,7 +829,7 @@ public class NEReconizer {
 				throw new RuntimeIOException(e);
 			}
 		}
-		Dataset trainSet = genTrainExamples(trainSents, trainNERs);
+		Dataset trainSet = genTrainExamples(trainSents, trainNERs, trainTrees);
 		classifier = new NNERClassifier(config, trainSet, E, W1, b1, W2, preComputed);
 	}
 
@@ -888,7 +895,8 @@ public class NEReconizer {
 		Timing timer = new Timing();
 		List<Sequence> testSents = new ArrayList<>();
 		List<Sequence> testNERs = new ArrayList<>();
-		NEUtil.loadConllFile(testFile, testSents, testNERs, config.unlabeled, config.cPOS, false); //no iobes encoding when we test the file
+		List<NEDependencyTree> testTrees = new ArrayList<>();
+		NEUtil.loadConllFile(testFile, testTrees, testSents, testNERs, config.unlabeled, config.cPOS, false); //no iobes encoding when we test the file
 
 		// count how much to parse
 		int numWords = 0;
