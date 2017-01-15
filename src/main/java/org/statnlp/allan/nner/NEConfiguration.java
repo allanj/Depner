@@ -3,6 +3,8 @@ package org.statnlp.allan.nner;
 import java.util.ArrayList;
 import java.util.List;
 
+import edu.stanford.nlp.parser.nndep.Config;
+
 
 /**
  * Describe the current configuration of a nNER.
@@ -182,6 +184,15 @@ public class NEConfiguration {
 	    return cnt;
 	  }
 	
+	  public int getRightValency(int k) {
+		    if (k < 0 || k > tree.n)
+		      return Config.NONEXIST;
+		    int cnt = 0;
+		    for (int i = k + 1; i <= tree.n; ++i)
+		      if (tree.getHead(i) == k)
+		        ++cnt;
+		    return cnt;
+	 }
 	/**
 	 * Returns a string that concatenates all elements on the stack and buffer,
 	 * as well as named entities

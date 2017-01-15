@@ -11,8 +11,8 @@ import edu.stanford.nlp.ling.CoreLabel;
  */
 public abstract class Sequence {
 
-	protected CoreLabel[] tokens;
-	protected int capacity;
+	public CoreLabel[] tokens;
+	public int capacity;
 	
 	public Sequence(int capacity){
 		this.capacity = capacity;

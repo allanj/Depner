@@ -2,30 +2,21 @@ package org.statnlp.allan.nner;
 
 import static java.util.stream.Collectors.toList;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
-import java.util.Set;
-
-import org.statnlp.allan.depner.Dataset;
 
 import edu.stanford.nlp.international.Language;
 import edu.stanford.nlp.io.IOUtils;
 import edu.stanford.nlp.io.RuntimeIOException;
-import edu.stanford.nlp.stats.Counter;
-import edu.stanford.nlp.stats.Counters;
-import edu.stanford.nlp.stats.IntCounter;
-import edu.stanford.nlp.util.Generics;
+import edu.stanford.nlp.process.WordShapeClassifier;
 import edu.stanford.nlp.util.RuntimeInterruptedException;
 import edu.stanford.nlp.util.StringUtils;
-import edu.stanford.nlp.util.Timing;
 import edu.stanford.nlp.util.logging.Redwood;
 
 /**
@@ -42,38 +33,7 @@ public class NEReconizer {
 	/** A logger for this class */
 	private static Redwood.RedwoodChannels log = Redwood.channels(NEReconizer.class);
 
-	/**
-	 * Words, parts of speech, and dependency relation labels which were
-	 * observed in our corpus / stored in the model
-	 *
-	 * @see #genDictionaries(java.util.List, java.util.List)
-	 */
-	private List<String> knownWords, knownPos, knownLabels;
-
-	/**
-	 * Return the set of part-of-speech tags of this parser. We normalize it a
-	 * bit to help it match what other parsers use.
-	 *
-	 * @return Set of POS tags
-	 */
-	public Set<String> getPosSet() {
-		Set<String> foo = Generics.newHashSet(knownPos);
-		// Don't really understand why these ones are there, but remove them.
-		// [CDM 2016]
-		foo.remove("-NULL-");
-		foo.remove("-UNKNOWN-");
-		foo.remove("-ROOT-");
-		// but our other models do include an EOS tag
-		foo.add(".$$.");
-		return Collections.unmodifiableSet(foo);
-	}
-
-	/**
-	 * Mapping from word / POS / dependency relation label to integer ID
-	 */
-	private Map<String, Integer> wordIDs, posIDs, labelIDs;
-
-	private List<Integer> preComputed;
+	private Map<String, Integer> feature2Idx;
 
 	/**
 	 * Given a particular recongnizer configuration, this classifier will
@@ -82,10 +42,11 @@ public class NEReconizer {
 	 * The {@link edu.stanford.nlp.parser.nndep.Classifier} class handles both
 	 * training and inference.
 	 */
-	private NNERClassifier classifier;
+	private StructuredPerceptron classifier;
 	private NERParsingSystem system;
 
 	private final NEConfig config;
+	private boolean finalized;
 
 	/**
 	 * Language used to generate
@@ -106,81 +67,134 @@ public class NEReconizer {
 		this.language = config.language;
 	}
 
-	/**
-	 * Get an integer ID for the given word. This ID can be used to index into
-	 * the embeddings {@link NNERClassifier#E}.
-	 *
-	 * @return An ID for the given word, or an ID referring to a generic
-	 *         "unknown" word if the word is unknown
-	 */
-	public int getWordID(String s) {
-		return wordIDs.containsKey(s) ? wordIDs.get(s) : wordIDs.get(NEConfig.UNKNOWN);
-	}
 
-	public int getPosID(String s) {
-		return posIDs.containsKey(s) ? posIDs.get(s) : posIDs.get(NEConfig.UNKNOWN);
+	private int toFeature(String str) {
+		if (this.feature2Idx.containsKey(str))
+			return this.feature2Idx.get(str);
+		else {
+			if (finalized) return -1;
+			int idx = this.feature2Idx.size();
+			this.feature2Idx.put(str, idx);
+			return idx;
+		}
 	}
-
-	public int getLabelID(String s) {
-		return labelIDs.containsKey(s) ? labelIDs.get(s) : labelIDs.get(NEConfig.UNKNOWN);
-	}
-
-	public List<Integer> getFeatures(NEConfiguration c) {
+	
+	
+	public List<Integer> getFeatures(NEConfiguration c, String action) {
 		// Presize the arrays for very slight speed gain. Hardcoded, but so is
 		// the current feature list.
 		// Not specify the initial capacity will make the list dynamically
 		// resize
-		List<Integer> fWord = new ArrayList<>(8);
-		List<Integer> fPos = new ArrayList<>(8);
-		List<Integer> fLabel = new ArrayList<>(4);
-		for (int j = 3; j >= 0; --j) {
-			int index = c.getStack(j);
-			fWord.add(getWordID(c.getWord(index)));
-			fPos.add(getPosID(c.getPOS(index)));
-			fLabel.add(getLabelID(c.getLabel(index)));
-		}
-		for (int j = 0; j <= 3; ++j) {
-			int index = c.getBuffer(j);
-			fWord.add(getWordID(c.getWord(index)));
-			fPos.add(getPosID(c.getPOS(index)));
-		}
-
-		List<Integer> feature = new ArrayList<>(20);
-		feature.addAll(fWord);
-		feature.addAll(fPos);
-		feature.addAll(fLabel);
+		List<Integer> feature = new ArrayList<>(44);
+		int s0 = c.getStack(0);
+		String s0w = c.getWord(s0);
+		String s0p = c.getPOS(s0);
+		int b0 = c.getBuffer(0);
+		int b1 = c.getBuffer(1);
+		int b2 = c.getBuffer(2);
+		String b0w = c.getWord(b0);
+		String b0p = c.getPOS(b0);
+		String b1w = c.getWord(b1);
+		String b1p = c.getPOS(b1);
+		String b2w = c.getWord(b2);
+		String b2p = c.getPOS(b2);
+		feature.add(toFeature("S0wp=" + s0w + " & " + s0p + " LABELS:" + action));
+		feature.add(toFeature("S0w=" + s0w + " LABELS:" + action));
+		feature.add(toFeature("S0p=" + s0p + " LABELS:" + action));
+		feature.add(toFeature("B0wp=" + b0w + " & " + b0p + " LABELS:" + action));
+		feature.add(toFeature("B0w=" + b0w + " LABELS:" + action));
+		feature.add(toFeature("B0p=" + b0p + " LABELS:" + action));
+		feature.add(toFeature("B1wp=" + b1w + " & " + b1p + " LABELS:" + action));
+		feature.add(toFeature("B1w=" + b1w + " LABELS:" + action));
+		feature.add(toFeature("B1p=" + b1p + " LABELS:" + action));
+		feature.add(toFeature("B2wp=" + b2w + " & " + b2p + " LABELS:" + action));
+		feature.add(toFeature("B2w=" + b2w + " LABELS:" + action));
+		feature.add(toFeature("B2p=" + b2p + " LABELS:" + action));
+		
+		feature.add(toFeature("S0wpB0qp=" + s0w + " & " + s0p + " & " + b0w + " & " + b0p + " LABELS:" + action));
+		feature.add(toFeature("S0wpB0w=" + s0w + " & " + s0p + " & " + b0w + " LABELS:" + action));
+		feature.add(toFeature("S0wB0wp=" + s0w + " & " + b0w + " & " + b0p + " LABELS:" + action));
+		feature.add(toFeature("S0wpB0p=" + s0w + " & " + s0p + " & " + b0p + " LABELS:" + action));
+		feature.add(toFeature("S0pB0wp=" + s0p + " & " + b0w + " & " + b0p + " LABELS:" + action));
+		feature.add(toFeature("S0wB0w=" + s0w + " & " + b0w + " LABELS:" + action));
+		feature.add(toFeature("S0pB0p=" + s0p + " & " + b0p + " LABELS:" + action));
+		feature.add(toFeature("B0pB1p=" + b0p + " & " + b1p + " LABELS:" + action));
+		
+		int s0l = c.getLeftChild(s0);
+		int s0r = c.getRightChild(s0);
+		String s0lp = c.getPOS(s0l);
+		String s0rp = c.getPOS(s0r);
+		feature.add(toFeature("B0pB1pB2p=" + b0p + " & " + b1p + " & " + b2p + " LABELS:" + action));
+		feature.add(toFeature("S0pB0pB1p=" + s0p + " & " + b0p + " & " + b1p + " LABELS:" + action));
+		feature.add(toFeature("S0pS0lpB0p=" + s0p + " & " + s0lp + " & " + b0p + " LABELS:" + action));
+		feature.add(toFeature("S0pS0rpB0p=" + s0p + " & " + s0rp + " & " + b0p + " LABELS:" + action));
+		
+		int dist = b0 - s0;
+		feature.add(toFeature("S0wd=" + s0w + " & " + dist + " LABELS:" + action));
+		feature.add(toFeature("S0pd=" + s0p + " & " + dist + " LABELS:" + action));
+		feature.add(toFeature("B0wd=" + b0w + " & " + dist + " LABELS:" + action));
+		feature.add(toFeature("B0pd=" + b0p + " & " + dist + " LABELS:" + action));
+		feature.add(toFeature("S0wB0wd=" + s0w + " & " + b0w + " & " + dist + " LABELS:" + action));
+		feature.add(toFeature("S0pB0pd=" + s0p + " & " + b0p + " & " + dist + " LABELS:" + action));
+		//valency
+		int s0vl = c.getLeftValency(s0);
+		int s0vr = c.getRightValency(s0);
+		feature.add(toFeature("S0wvr=" + s0w + " & " + s0vr + " LABELS:" + action));
+		feature.add(toFeature("S0pvr=" + s0p + " & " + s0vr + " LABELS:" + action));
+		feature.add(toFeature("S0wvl=" + s0w + " & " + s0vl + " LABELS:" + action));
+		feature.add(toFeature("S0pvl=" + s0p + " & " + s0vl + " LABELS:" + action));
+		
+		String s0lw = c.getWord(s0l);
+		String s0rw = c.getWord(s0r);
+		feature.add(toFeature("S0lw=" + s0lw + " LABELS:" + action));
+		feature.add(toFeature("S0lp=" + s0lp + " LABELS:" + action));
+		feature.add(toFeature("S0rw=" + s0rw + " LABELS:" + action));
+		feature.add(toFeature("S0rp=" + s0rp + " LABELS:" + action));
+		
+		int s0l2 = c.getLeftChild(s0, 2);
+		int s0r2 = c.getRightChild(s0, 2);
+		String s0l2w = c.getWord(s0l2);
+		String s0l2p = c.getPOS(s0l2);
+		String s0r2w = c.getWord(s0r2);
+		String s0r2p = c.getPOS(s0r2);
+		feature.add(toFeature("S0l2w=" + s0l2w + " LABELS:" + action));
+		feature.add(toFeature("S0l2p=" + s0l2p + " LABELS:" + action));
+		feature.add(toFeature("S0r2w=" + s0r2w + " LABELS:" + action));
+		feature.add(toFeature("S0r2w=" + s0r2p + " LABELS:" + action));
+		feature.add(toFeature("S0pS0lpS0l2p=" + s0p + " & " + s0lp + " & " + s0l2p + " LABELS:" + action));
+		feature.add(toFeature("S0pS0rpS0r2p=" + s0p + " & " + s0rp + " & " + s0r2p + " LABELS:" + action));
+		
+		String b0s = WordShapeClassifier.wordShape(b0w,WordShapeClassifier.WORDSHAPEJENNY1);
+		int bMinus1 = b0 - 1;
+		String bMinus1w = c.getWord(bMinus1);
+		String bMinus1p = c.getPOS(bMinus1);
+		String bMinus1s = WordShapeClassifier.wordShape(bMinus1w,WordShapeClassifier.WORDSHAPEJENNY1);
+		String b1s = WordShapeClassifier.wordShape(b1w,WordShapeClassifier.WORDSHAPEJENNY1);
+		feature.add(toFeature("E-B0s=" + b0s + " LABELS:" + action));
+		feature.add(toFeature("E-B-1w=" + bMinus1w + " LABELS:" + action));
+		feature.add(toFeature("E-B-1p=" + bMinus1p + " LABELS:" + action));
+		feature.add(toFeature("E-B-1s=" + bMinus1s + " LABELS:" + action));
+		feature.add(toFeature("E-B1s=" + b1s + " LABELS:" + action));
+		feature.add(toFeature("E-surrp=" + bMinus1p + " & " + b1p + " LABELS:" + action));
+		feature.add(toFeature("E-surrs=" + bMinus1s + " & " + b1s + " LABELS:" + action));
+		
 		return feature;
 	}
 
-	private static final int POS_OFFSET = 8;
-	private static final int NE_OFFSET = 12;
-
-	private int[] getFeatureArray(NEConfiguration c) {
-		int[] feature = new int[NEConfig.numTokens]; // positions 0-7 hold fWord, 8-15 hold fPos, 16-19 hold fLabel 6+6+3
-		for (int j = 3; j >= 0; --j) {
-			int index = c.getStack(j);
-			feature[3 - j] = getWordID(c.getWord(index));
-			feature[POS_OFFSET + (3 - j)] = getPosID(c.getPOS(index));
-		}
-		for (int j = 0; j <= 3; ++j) {
-			int index = c.getBuffer(j);
-			feature[4 + j] = getWordID(c.getWord(index));
-			feature[POS_OFFSET + 4 + j] = getPosID(c.getPOS(index));
-		}
-		for (int j = 3; j >= 0; --j) {
-			int index = c.getStack(j);
-			feature[NE_OFFSET + (3 - j)] = getLabelID(c.getLabel(index));
-		}
-		return feature;
-	}
-
-	public Dataset genTrainExamples(List<Sequence> sents, List<Sequence> ners , List<NEDependencyTree> trees) {
+	/**
+	 * Extracting features and also generate the training samples
+	 * @param sents
+	 * @param ners
+	 * @param trees
+	 * @return
+	 */
+	public NEDataset genTrainExamples(List<Sequence> sents, List<JointPair> pairs) {
 		int numTrans = system.numTransitions();
-		Dataset ret = new Dataset(NEConfig.numTokens, numTrans);
+		NEDataset ret = new NEDataset(sents.size(), numTrans);
 
-		Counter<Integer> tokPosCount = new IntCounter<>();
 		log.info(NEConfig.SEPARATOR);
-		log.info("Generate training examples...");
+		//log.info("Generate training examples...");
+		log.info("Extracting features from training data...");
 
 		for (int i = 0; i < sents.size(); ++i) {
 			if (i > 0) {
@@ -190,366 +204,46 @@ public class NEReconizer {
 					log.info();
 			}
 			NEConfiguration c = system.initialConfiguration(sents.get(i));
+			List<List<Integer>> goldFeatures = new ArrayList<List<Integer>>();
+			List<String> goldActionSeq = new ArrayList<String>();
+			JointPair pair = pairs.get(i);
 			while (!system.isTerminal(c)) {
-				String oracle = system.getOracle(c, trees.get(i), ners.get(i));
-				List<Integer> feature = getFeatures(c);
-				List<Integer> label = new ArrayList<>();
+				String oracle = system.getOracle(c, pair.tree, pair.ners);
+				List<Integer> goldFeature = getFeatures(c, oracle);
+				goldFeatures.add(goldFeature);
+				goldActionSeq.add(oracle);
 				for (int j = 0; j < numTrans; ++j) {
-					String str = system.transitions.get(j);
-					if (str.equals(oracle))
-						label.add(1); // is oracle
-					else if (system.canApply(c, str))
-						label.add(0); //can apply but not oracle action
-					else
-						label.add(-1);
+					String action = system.transitions.get(j);
+					//List<Integer> feature = getFeatures(c, action);
+					getFeatures(c, action);
 				}
-
-				ret.addExample(feature, label);
-				for (int j = 0; j < feature.size(); ++j)
-					tokPosCount.incrementCount(feature.get(j) * feature.size() + j); //for the precomputation trick
 				system.apply(c, oracle);
 			}
+			ret.addExample(goldFeatures, goldActionSeq);
 		}
 		log.info("#Train Examples: " + ret.n);
-
-		List<Integer> sortedTokens = Counters.toSortedList(tokPosCount, false);
-		preComputed = new ArrayList<>(sortedTokens.subList(0, Math.min(config.numPreComputed, sortedTokens.size())));
-
+		assert(ret.n == sents.size());
 		return ret;
 	}
 
-	/**
-	 * Generate unique integer IDs for all known words / part-of-speech tags /
-	 * dependency relation labels.
-	 *
-	 * All three of the aforementioned types are assigned IDs from a continuous
-	 * range of integers; all IDs 0 <= ID < n_w are word IDs, all IDs n_w <= ID
-	 * < n_w + n_pos are POS tag IDs, and so on.
-	 */
-	private void generateIDs() {
-		wordIDs = new HashMap<>();
-		posIDs = new HashMap<>();
-		labelIDs = new HashMap<>();
-
-		int index = 0;
-		for (String word : knownWords)
-			wordIDs.put(word, (index++));
-		for (String pos : knownPos)
-			posIDs.put(pos, (index++));
-		for (String label : knownLabels)
-			labelIDs.put(label, (index++));
-	}
-
-	/**
-	 * Scan a corpus and store all words, part-of-speech tags, and dependency
-	 * relation labels observed. Prepare other structures which support word /
-	 * POS / label lookup at train- / run-time.
-	 */
-	private void genDictionaries(List<Sequence> sents, List<Sequence> ners) {
-		// Collect all words (!), etc. in lists, tacking on one sentence
-		// after the other
-		List<String> word = new ArrayList<>();
-		List<String> pos = new ArrayList<>();
-		List<String> label = new ArrayList<>();
-
-		for (Sequence sentence : sents) {
-
-			for(int i = 0; i < sentence.size(); i++){
-				word.add(sentence.get(i)[0]);
-				pos.add(sentence.get(i)[1]);
-			}
-		}
-
-		for (Sequence ner : ners) {
-			for(int i = 0; i < ner.size(); i++){
-				label.add(ner.get(i)[0]);
-			}
-		}
-		
-		// Generate "dictionaries," possibly with frequency cutoff
-		knownWords = NEUtil.generateDict(word, config.wordCutOff);
-		knownPos = NEUtil.generateDict(pos);
-		knownLabels = NEUtil.generateDict(label);
-
-
-		knownWords.add(0, NEConfig.UNKNOWN);
-		knownWords.add(1, NEConfig.NULL);
-		//knownWords.add(2, NEConfig.ROOT);
-
-		knownPos.add(0, NEConfig.UNKNOWN);
-		knownPos.add(1, NEConfig.NULL);
-		//knownPos.add(2, NEConfig.ROOT);
-
-		knownLabels.add(0, NEConfig.NULL);
-		generateIDs();
-
-		log.info(NEConfig.SEPARATOR);
-		log.info("#Word: " + knownWords.size());
-		log.info("#POS:" + knownPos.size());
-		log.info("#Label: " + knownLabels.size());
-	}
 
 	public void writeModelFile(String modelFile) {
 		try {
-			double[][] W1 = classifier.getW1();
-			double[] b1 = classifier.getb1();
-			double[][] W2 = classifier.getW2();
-			double[][] E = classifier.getE();
+			double[] weights = classifier.getWeights();
 
 			Writer output = IOUtils.getPrintWriter(modelFile);
-
-			output.write("dict=" + knownWords.size() + "\n");
-			output.write("pos=" + knownPos.size() + "\n");
-			output.write("label=" + knownLabels.size() + "\n");
-			output.write("embeddingSize=" + E[0].length + "\n");
-			output.write("hiddenSize=" + b1.length + "\n");
-			output.write("numTokens=" + (W1[0].length / E[0].length) + "\n");
-			output.write("preComputed=" + preComputed.size() + "\n");
-
-			int index = 0;
-
-			// First write word / POS / label embeddings
-			for (String word : knownWords) {
-				index = writeEmbedding(E[index], output, index, word);
-			}
-			for (String pos : knownPos) {
-				index = writeEmbedding(E[index], output, index, pos);
-			}
-			for (String label : knownLabels) {
-				index = writeEmbedding(E[index], output, index, label);
-			}
-
 			// Now write classifier weights
-			for (int j = 0; j < W1[0].length; ++j)
-				for (int i = 0; i < W1.length; ++i) {
-					output.write(String.valueOf(W1[i][j]));
-					if (i == W1.length - 1)
-						output.write("\n");
-					else
-						output.write(" ");
-				}
-			for (int i = 0; i < b1.length; ++i) {
-				output.write(String.valueOf(b1[i]));
-				if (i == b1.length - 1)
+			for (int i = 0; i < weights.length; ++i) {
+				output.write(String.valueOf(weights[i]));
+				if (i == weights.length - 1)
 					output.write("\n");
 				else
 					output.write(" ");
 			}
-			for (int j = 0; j < W2[0].length; ++j)
-				for (int i = 0; i < W2.length; ++i) {
-					output.write(String.valueOf(W2[i][j]));
-					if (i == W2.length - 1)
-						output.write("\n");
-					else
-						output.write(" ");
-				}
-
-			// Finish with pre-computation info
-			for (int i = 0; i < preComputed.size(); ++i) {
-				output.write(String.valueOf(preComputed.get(i)));
-				if ((i + 1) % 100 == 0 || i == preComputed.size() - 1)
-					output.write("\n");
-				else
-					output.write(" ");
-			}
-
 			output.close();
 		} catch (IOException e) {
 			throw new RuntimeIOException(e);
 		}
-	}
-
-	private static int writeEmbedding(double[] doubles, Writer output, int index, String word) throws IOException {
-		output.write(word);
-		for (double aDouble : doubles) {
-			output.write(" " + aDouble);
-		}
-		output.write("\n");
-		index = index + 1;
-		return index;
-	}
-
-	/**
-	 * Convenience method; see
-	 * {@link #loadFromModelFile(String, java.util.Properties)}.
-	 *
-	 * @see #loadFromModelFile(String, java.util.Properties)
-	 */
-	public static NEReconizer loadFromModelFile(String modelFile) {
-		return loadFromModelFile(modelFile, null);
-	}
-
-	/**
-	 * Load a saved parser model.
-	 *
-	 * @param modelFile
-	 *            Path to serialized model (may be GZipped)
-	 * @param extraProperties
-	 *            Extra test-time properties not already associated with model
-	 *            (may be null)
-	 *
-	 * @return Loaded and initialized (see {@link #initialize(boolean)} model
-	 */
-	public static NEReconizer loadFromModelFile(String modelFile, Properties extraProperties) {
-		NEReconizer parser = extraProperties == null ? new NEReconizer() : new NEReconizer(extraProperties);
-		parser.loadModelFile(modelFile, false);
-		return parser;
-	}
-
-	/**
-	 * Load a parser model file, printing out some messages about the grammar in
-	 * the file.
-	 *
-	 * @param modelFile
-	 *            The file (classpath resource, etc.) to load the model from.
-	 */
-	public void loadModelFile(String modelFile) {
-		loadModelFile(modelFile, true);
-	}
-
-	private void loadModelFile(String modelFile, boolean verbose) {
-		Timing t = new Timing();
-		try {
-
-			log.info("Loading depparse model file: " + modelFile + " ... ");
-			String s;
-			BufferedReader input = IOUtils.readerFromString(modelFile);
-
-			s = input.readLine();
-			int nDict = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-			s = input.readLine();
-			int nPOS = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-			s = input.readLine();
-			int nLabel = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-			s = input.readLine();
-			int eSize = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-			s = input.readLine();
-			int hSize = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-			s = input.readLine();
-			int nTokens = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-			s = input.readLine();
-			int nPreComputed = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-
-			knownWords = new ArrayList<>();
-			knownPos = new ArrayList<>();
-			knownLabels = new ArrayList<>();
-			double[][] E = new double[nDict + nPOS + nLabel][eSize];
-			String[] splits;
-			int index = 0;
-
-			for (int k = 0; k < nDict; ++k) {
-				s = input.readLine();
-				splits = s.split(" ");
-				knownWords.add(splits[0]);
-				for (int i = 0; i < eSize; ++i)
-					E[index][i] = Double.parseDouble(splits[i + 1]);
-				index = index + 1;
-			}
-			for (int k = 0; k < nPOS; ++k) {
-				s = input.readLine();
-				splits = s.split(" ");
-				knownPos.add(splits[0]);
-				for (int i = 0; i < eSize; ++i)
-					E[index][i] = Double.parseDouble(splits[i + 1]);
-				index = index + 1;
-			}
-			for (int k = 0; k < nLabel; ++k) {
-				s = input.readLine();
-				splits = s.split(" ");
-				knownLabels.add(splits[0]);
-				for (int i = 0; i < eSize; ++i)
-					E[index][i] = Double.parseDouble(splits[i + 1]);
-				index = index + 1;
-			}
-			generateIDs();
-
-			double[][] W1 = new double[hSize][eSize * nTokens];
-			for (int j = 0; j < W1[0].length; ++j) {
-				s = input.readLine();
-				splits = s.split(" ");
-				for (int i = 0; i < W1.length; ++i)
-					W1[i][j] = Double.parseDouble(splits[i]);
-			}
-
-			double[] b1 = new double[hSize];
-			s = input.readLine();
-			splits = s.split(" ");
-			for (int i = 0; i < b1.length; ++i)
-				b1[i] = Double.parseDouble(splits[i]);
-
-			//Be careful about this when implementing
-			//previously is 2*nLabel-1
-			double[][] W2 = new double[nLabel - 1][hSize];
-			for (int j = 0; j < W2[0].length; ++j) {
-				s = input.readLine();
-				splits = s.split(" ");
-				for (int i = 0; i < W2.length; ++i)
-					W2[i][j] = Double.parseDouble(splits[i]);
-			}
-
-			preComputed = new ArrayList<>();
-			while (preComputed.size() < nPreComputed) {
-				s = input.readLine();
-				splits = s.split(" ");
-				for (String split : splits) {
-					preComputed.add(Integer.parseInt(split));
-				}
-			}
-			input.close();
-			config.hiddenSize = hSize;
-			config.embeddingSize = eSize;
-			classifier = new NNERClassifier(config, E, W1, b1, W2, preComputed);
-		} catch (IOException e) {
-			throw new RuntimeIOException(e);
-		}
-
-		// initialize the loaded parser
-		initialize(verbose);
-		t.done("Initializing dependency parser");
-	}
-
-	// TODO this should be a function which returns the embeddings array +
-	// embedID
-	// otherwise the class needlessly carries around the extra baggage of
-	// `embeddings`
-	// (never again used) for the entire training process
-	private double[][] readEmbedFile(String embedFile, Map<String, Integer> embedID) {
-
-		double[][] embeddings = null;
-		if (embedFile != null) {
-			BufferedReader input = null;
-			try {
-				input = IOUtils.readerFromString(embedFile);
-				List<String> lines = new ArrayList<>();
-				for (String s; (s = input.readLine()) != null;) {
-					lines.add(s);
-				}
-
-				int nWords = lines.size();
-				String[] splits = lines.get(0).split("\\s+");
-
-				int dim = splits.length - 1;
-				embeddings = new double[nWords][dim];
-				log.info("Embedding File " + embedFile + ": #Words = " + nWords + ", dim = " + dim);
-
-				if (dim != config.embeddingSize)
-					throw new IllegalArgumentException(
-							"The dimension of embedding file does not match config.embeddingSize");
-
-				for (int i = 0; i < lines.size(); ++i) {
-					splits = lines.get(i).split("\\s+");
-					embedID.put(splits[0], i);
-					for (int j = 0; j < dim; ++j)
-						embeddings[i][j] = Double.parseDouble(splits[j + 1]);
-				}
-			} catch (IOException e) {
-				throw new RuntimeIOException(e);
-			} finally {
-				IOUtils.closeIgnoringExceptions(input);
-			}
-			embeddings = NEUtil.scaling(embeddings, 0, 1.0);
-		}
-		return embeddings;
 	}
 
 	/**
@@ -566,98 +260,114 @@ public class NEReconizer {
 	 * @param evalFile 
 	 * 			  The evaluation file for getting the f-score using the conlleval script, can be just a temporary file.
 	 */
-	public void train(String trainFile, String devFile, String modelFile, String embedFile, String preModel) {
+	public void train(String trainFile, String devFile, String modelFile) {
 		log.info("Train File: " + trainFile);
 		log.info("Dev File: " + devFile);
 		log.info("Model File: " + modelFile);
-		log.info("Embedding File: " + embedFile);
-		log.info("Pre-trained Model File: " + preModel);
 
 		List<Sequence> trainSents = new ArrayList<>();
-		List<Sequence> trainNEs = new ArrayList<>();
-		List<NEDependencyTree> trainTrees = new ArrayList<>();
-		NEUtil.loadConllFile(trainFile, trainTrees, trainSents, trainNEs, config.unlabeled, config.cPOS, config.IOBESencoding);
-		NEUtil.printNERStats("Train", trainNEs);
-		NEUtil.printTreeStats("Train", trainTrees);
+		List<JointPair> trainPairs = new ArrayList<>();
+		NEUtil.loadConllFile(trainFile, trainSents, trainPairs, config.unlabeled, config.cPOS, config.IOBESencoding);
+		NEUtil.printNERStats("Train", trainPairs);
+		NEUtil.printTreeStats("Train", trainPairs);
 
 		List<Sequence> devSents = new ArrayList<>();
-		List<Sequence> devNERs = new ArrayList<>();
-		List<NEDependencyTree> devTrees = new ArrayList<>();
+		List<JointPair> devPairs = new ArrayList<>();
 		if (devFile != null) {
-			NEUtil.loadConllFile(devFile, devTrees, devSents, devNERs, config.unlabeled, config.cPOS, config.IOBESencoding);
-			NEUtil.printNERStats("Dev", devNERs);
-			NEUtil.printTreeStats("Dev", devTrees);
+			NEUtil.loadConllFile(devFile, devSents, devPairs, config.unlabeled, config.cPOS, config.IOBESencoding);
+			NEUtil.printNERStats("Dev", trainPairs);
+			NEUtil.printTreeStats("Dev", trainPairs);
 		}
-		genDictionaries(trainSents, trainNEs);
 
-		// NOTE: remove -NULL-, and the pass it to ParsingSystem
-		List<String> lDict = new ArrayList<>(knownLabels);
-		lDict.remove(0);
+		// NOTE: only one label.
+		List<String> lDict = new ArrayList<>(1);
+		lDict.add("NA");
 		system = new NEStandard(config.tlp, lDict, true, config.IOBESencoding);
 
 		// Initialize a classifier; prepare for training
-		setupClassifierForTraining(trainSents, trainTrees, trainNEs, embedFile, preModel);
+		setupClassifierForTraining(trainSents, trainPairs);
+		this.classifier.enableAvgPerceptron();
 
 		log.info(NEConfig.SEPARATOR);
 		config.printParameters();
-
+		int numTrans = system.numTransitions();
 		long startTime = System.currentTimeMillis();
 		/**
 		 * Track the best accracy performance we've seen.
 		 */
 		double bestFscore = 0;
-
+		
 		for (int iter = 0; iter < config.maxIter; ++iter) {
 			log.info("##### Iteration " + iter);
-			
+			int correctCount = 0;
 			for (int idx = 0; idx < trainSents.size(); idx++) {
-				
+				Sequence sent = trainSents.get(idx);
+				NEConfiguration c = system.initialConfiguration(sent);
+				List<String> goldActSeq = classifier.trainingData.examples.get(idx).getActionSequences();
+				int gIdx = 0;
+				while (!system.isTerminal(c)) {
+					double maxScore = Double.NEGATIVE_INFINITY;
+					String bestAct = null;
+					List<Integer> bestFeature = null;
+					for (int j = 0; j < numTrans; ++j) {
+						String action = system.transitions.get(j);
+						if (system.canApply(c, action)) {
+							List<Integer> feature = getFeatures(c, action);
+							double score = classifier.getScore(feature);
+							if (score < maxScore) {
+								bestAct = action;
+								maxScore = score;
+								bestFeature = feature;
+							}
+						}
+					}
+					if (bestAct == null) throw new RuntimeException("No action is available??");
+					if (!bestAct.equals(goldActSeq.get(gIdx))) {
+						//update parameter
+						List<Integer> goldFeature = classifier.trainingData.examples.get(idx).getFeatures().get(gIdx);
+						this.classifier.update(goldFeature, bestFeature);
+						this.classifier.incrementAvgWeight();
+						break;
+					} else {
+						system.apply(c, bestAct);
+						this.classifier.incrementAvgWeight();
+						gIdx++;
+					}
+				}
+				if (system.isTerminal(c))
+					correctCount++;
 			}
-			
-			NNERClassifier.Cost cost = classifier.computeCostFunction(config.batchSize, config.regParameter,
-					config.dropProb);
-			log.info("Cost = " + cost.getCost() + ", Correct(%) = " + cost.getPercentCorrect());
-			classifier.takeAdaGradientStep(cost, config.adaAlpha, config.adaEps);
-
+			log.info(" Correct(%) = " + correctCount*1.0/trainSents.size());
 			log.info("Elapsed Time: " + (System.currentTimeMillis() - startTime) / 1000.0 + " (s)");
 
 			// Fscore evaluation
 			if (devFile != null && iter % config.evalPerIter == 0) {
-				// Redo precomputation with updated weights. This is only
-				// necessary because we're updating weights -- for normal
-				// prediction, we just do this once in #initialize
-				classifier.preCompute();
-
-				List<Sequence> predicted = devSents.stream().map(this::predictInner).collect(toList());
-
-				double fscore = system.getFscore(devSents, predicted, devNERs, NEConfig.EVAL_FILE);
-
-				if (config.saveIntermediate && fscore > bestFscore) {
+				this.classifier.averageWeight();
+				List<JointPair> predicted = devSents.stream().map(this::predictInner).collect(toList());
+				Map<String, Double> result = system.evaluate(devSents, predicted, devPairs, NEConfig.EVAL_FILE);
+				double fscore = result.get("fscore");   
+				double uas = result.get("uas");
+				double comb = result.get("comb");
+				if (config.saveIntermediate && comb > bestFscore) {
 					System.err.printf("Exceeds best previous UAS of %f. Saving model file..%n", bestFscore);
-					bestFscore = fscore;
+					bestFscore = comb;
 					writeModelFile(modelFile);
 				}
 			}
-
-			// Clear gradients
-			if (config.clearGradientsPerIter > 0 && iter % config.clearGradientsPerIter == 0) {
-				log.info("Clearing gradient histories..");
-				classifier.clearGradientHistories();
-			}
 		}
-
-		classifier.finalizeTraining();
-
+		this.classifier.averageWeight();
+		this.classifier.finalizeClassifier();
 		if (devFile != null) {
 			// Do final UAS evaluation and save if final model beats the
 			// best intermediate one
-			List<Sequence> predicted = devSents.stream().map(this::predictInner).collect(toList());
-			double fscore = system.getFscore(devSents, predicted, devNERs, NEConfig.EVAL_FILE);
-
-			if (fscore > bestFscore) {
-				System.err.printf("Final model F-score: %f%n", fscore);
+			List<JointPair> predicted = devSents.stream().map(this::predictInner).collect(toList());
+			Map<String, Double> result = system.evaluate(devSents, predicted, devPairs, NEConfig.EVAL_FILE);
+			double fscore = result.get("fscore");   
+			double uas = result.get("uas");
+			double comb = result.get("comb");
+			if (comb > bestFscore) {
+				System.err.printf("Final model F-score: %f%n", comb);
 				System.err.printf("Exceeds best previous UAS of %f. Saving model file..%n", bestFscore);
-
 				writeModelFile(modelFile);
 			}
 		} else {
@@ -665,172 +375,22 @@ public class NEReconizer {
 		}
 	}
 
-	/**
-	 * @see #train(String, String, String, String, String)
-	 */
-	public void train(String trainFile, String devFile, String modelFile, String embedFile) {
-		train(trainFile, devFile, modelFile, embedFile, null);
-	}
-
-	/**
-	 * @see #train(String, String, String, String)
-	 */
-	public void train(String trainFile, String devFile, String modelFile) {
-		train(trainFile, devFile, modelFile, null);
-	}
-
-	/**
-	 * @see #train(String, String, String)
-	 */
-	public void train(String trainFile, String modelFile) {
-		train(trainFile, null, modelFile);
-	}
 
 	/**
 	 * Prepare a classifier for training with the given dataset.
 	 */
-	private void setupClassifierForTraining(List<Sequence> trainSents, List<NEDependencyTree> trainTrees, List<Sequence> trainNERs, String embedFile,
-			String preModel) {
-		double[][] E = new double[knownWords.size() + knownPos.size() + knownLabels.size()][config.embeddingSize];
-		double[][] W1 = new double[config.hiddenSize][config.embeddingSize * NEConfig.numTokens];
-		double[] b1 = new double[config.hiddenSize];
-		double[][] W2 = new double[system.numTransitions()][config.hiddenSize];
-
-		// Randomly initialize weight matrices / vectors
+	private void setupClassifierForTraining(List<Sequence> trainSents, List<JointPair> trainPairs) {
+		
+		// Randomly initialize weight matrices
+		this.finalized = false;
+		NEDataset trainSet = genTrainExamples(trainSents, trainPairs);
+		this.finalized = true;
+		double[] weights = new double[this.feature2Idx.size()];
 		Random random = NEUtil.getRandom();
-		for (int i = 0; i < W1.length; ++i)
-			for (int j = 0; j < W1[i].length; ++j)
-				W1[i][j] = random.nextDouble() * 2 * config.initRange - config.initRange;
-
-		for (int i = 0; i < b1.length; ++i)
-			b1[i] = random.nextDouble() * 2 * config.initRange - config.initRange;
-
-		for (int i = 0; i < W2.length; ++i)
-			for (int j = 0; j < W2[i].length; ++j)
-				W2[i][j] = random.nextDouble() * 2 * config.initRange - config.initRange;
-
-		// Read embeddings into `embedID`, `embeddings`
-		Map<String, Integer> embedID = new HashMap<>();
-		double[][] embeddings = readEmbedFile(embedFile, embedID);
-
-		// Try to match loaded embeddings with words in dictionary
-		int foundEmbed = 0;
-		for (int i = 0; i < E.length; ++i) {
-			int index = -1;
-			if (i < knownWords.size()) {
-				String str = knownWords.get(i);
-				// NOTE: exact match first, and then try lower case..
-				if (embedID.containsKey(str))
-					index = embedID.get(str);
-				else if (embedID.containsKey(str.toLowerCase()))
-					index = embedID.get(str.toLowerCase());
-			}
-			if (index >= 0) {
-				++foundEmbed;
-				System.arraycopy(embeddings[index], 0, E[i], 0, E[i].length);
-			} else {
-				for (int j = 0; j < E[i].length; ++j)
-					// E[i][j] = random.nextDouble() * config.initRange * 2 -
-					// config.initRange;
-					// E[i][j] = random.nextDouble() * 0.2 - 0.1;
-					// E[i][j] = random.nextGaussian() * Math.sqrt(0.1);
-					E[i][j] = random.nextDouble() * 0.02 - 0.01;
-			}
-		}
-		log.info("Found embeddings: " + foundEmbed + " / " + knownWords.size());
-
-		if (preModel != null) {
-			try {
-				log.info("Loading pre-trained model file: " + preModel + " ... ");
-				String s;
-				BufferedReader input = IOUtils.readerFromString(preModel);
-
-				s = input.readLine();
-				int nDict = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-				s = input.readLine();
-				int nPOS = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-				s = input.readLine();
-				int nLabel = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-				s = input.readLine();
-				int eSize = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-				s = input.readLine();
-				int hSize = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-				s = input.readLine();
-				int nTokens = Integer.parseInt(s.substring(s.indexOf('=') + 1));
-				s = input.readLine();
-
-				String[] splits;
-				for (int k = 0; k < nDict; ++k) {
-					s = input.readLine();
-					splits = s.split(" ");
-					if (wordIDs.containsKey(splits[0]) && eSize == config.embeddingSize) {
-						int index = getWordID(splits[0]);
-						for (int i = 0; i < eSize; ++i)
-							E[index][i] = Double.parseDouble(splits[i + 1]);
-					}
-				}
-
-				for (int k = 0; k < nPOS; ++k) {
-					s = input.readLine();
-					splits = s.split(" ");
-					if (posIDs.containsKey(splits[0]) && eSize == config.embeddingSize) {
-						int index = getPosID(splits[0]);
-						for (int i = 0; i < eSize; ++i)
-							E[index][i] = Double.parseDouble(splits[i + 1]);
-					}
-				}
-
-				for (int k = 0; k < nLabel; ++k) {
-					s = input.readLine();
-					splits = s.split(" ");
-					if (labelIDs.containsKey(splits[0]) && eSize == config.embeddingSize) {
-						int index = getLabelID(splits[0]);
-						for (int i = 0; i < eSize; ++i)
-							E[index][i] = Double.parseDouble(splits[i + 1]);
-					}
-				}
-
-				boolean copyLayer1 = hSize == config.hiddenSize && config.embeddingSize == eSize
-						&& NEConfig.numTokens == nTokens;
-				if (copyLayer1) {
-					log.info("Copying parameters W1 && b1...");
-				}
-				for (int j = 0; j < eSize * nTokens; ++j) {
-					s = input.readLine();
-					if (copyLayer1) {
-						splits = s.split(" ");
-						for (int i = 0; i < hSize; ++i)
-							W1[i][j] = Double.parseDouble(splits[i]);
-					}
-				}
-
-				s = input.readLine();
-				if (copyLayer1) {
-					splits = s.split(" ");
-					for (int i = 0; i < hSize; ++i)
-						b1[i] = Double.parseDouble(splits[i]);
-				}
-
-				//careful about this as well. previously is nLabel * 2 - 1
-				boolean copyLayer2 = (nLabel - 1 == system.numTransitions()) && hSize == config.hiddenSize;
-				if (copyLayer2)
-					log.info("Copying parameters W2...");
-				for (int j = 0; j < hSize; ++j) {
-					s = input.readLine();
-					if (copyLayer2) {
-						splits = s.split(" ");
-						//careful about this as well. previously is nLabel * 2 - 1
-						for (int i = 0; i < nLabel - 1; ++i)
-							W2[i][j] = Double.parseDouble(splits[i]);
-					}
-				}
-				input.close();
-			} catch (IOException e) {
-				throw new RuntimeIOException(e);
-			}
-		}
-		Dataset trainSet = genTrainExamples(trainSents, trainNERs, trainTrees);
-		classifier = new NNERClassifier(config, trainSet, E, W1, b1, W2, preComputed);
+	    for (int i = 0; i < weights.length; i++)
+	        weights[i] = random.nextDouble() * 2 * config.initRange - config.initRange;
+		//initialization:
+		classifier = new StructuredPerceptron(config, weights, system.numTransitions(), trainSet);
 	}
 
 	/**
@@ -838,7 +398,7 @@ public class NEReconizer {
 	 * <p>
 	 * This "inner" method returns a structure unique to this package; 
 	 */
-	private Sequence predictInner(Sequence sentence) {
+	private JointPair predictInner(Sequence sentence) {
 		int numTrans = system.numTransitions();
 
 		NEConfiguration c = system.initialConfiguration(sentence);
@@ -846,20 +406,23 @@ public class NEReconizer {
 			if (Thread.interrupted()) { // Allow interrupting
 				throw new RuntimeInterruptedException();
 			}
-			double[] scores = classifier.computeScores(getFeatureArray(c));
+			//double[] scores = classifier.computeScores(getFeatureArray(c));
 
 			double optScore = Double.NEGATIVE_INFINITY;
 			String optTrans = null;
 
 			for (int j = 0; j < numTrans; ++j) {
-				if (scores[j] > optScore && system.canApply(c, system.transitions.get(j))) {
-					optScore = scores[j];
-					optTrans = system.transitions.get(j);
+				String action = system.transitions.get(j);
+				List<Integer> featureList =  getFeatures(c, action);
+				double score = classifier.getScore(featureList);
+				if (score > optScore && system.canApply(c, system.transitions.get(j))) {
+					optScore = score;
+					optTrans = action;
 				}
 			}
 			system.apply(c, optTrans);
 		}
-		return c.ners;
+		return new JointPair(c.ners, c.tree);
 	}
 
 	/**
@@ -870,10 +433,10 @@ public class NEReconizer {
 	 *             If parser has not yet been loaded and initialized (see
 	 *             {@link #initialize(boolean)}
 	 */
-	public Sequence predict(Sequence sentence) {
+	public JointPair predict(Sequence sentence) {
 		if (system == null)
 			throw new IllegalStateException("Parser has not been  " + "loaded and initialized; first load a model.");
-		Sequence result = predictInner(sentence);
+		JointPair result = predictInner(sentence);
 		return result;
 	}
 
@@ -892,62 +455,20 @@ public class NEReconizer {
 	 */
 	public double testCoNLL(String testFile, String outFile) {
 		log.info("Test File: " + testFile);
-		Timing timer = new Timing();
 		List<Sequence> testSents = new ArrayList<>();
-		List<Sequence> testNERs = new ArrayList<>();
-		List<NEDependencyTree> testTrees = new ArrayList<>();
-		NEUtil.loadConllFile(testFile, testTrees, testSents, testNERs, config.unlabeled, config.cPOS, false); //no iobes encoding when we test the file
+		List<JointPair> testPairs = new ArrayList<>();
+		NEUtil.loadConllFile(testFile, testSents, testPairs, config.unlabeled, config.cPOS, false); //no iobes encoding when we test the file
 
-		// count how much to parse
-		int numWords = 0;
-		int numOOVWords = 0;
-		int numSentences = 0;
-		for (Sequence testSent : testSents) {
-			numSentences += 1;
-			for (int i = 0; i< testSent.size(); i++) {
-				String word = testSent.get(i)[0];
-				numWords += 1;
-				if (!wordIDs.containsKey(word))
-					numOOVWords += 1;
-			}
-		}
-		System.err.printf("OOV Words: %d / %d = %.2f%%\n", numOOVWords, numWords, numOOVWords * 100.0 / numWords);
-
-		List<Sequence> predicted = testSents.stream().map(this::predictInner).collect(toList()); // jdk 8 new features
-		Map<String, Double> result = system.evaluate(testSents, predicted, testNERs, NEConfig.EVAL_FILE);
+		List<JointPair> predicted = testSents.stream().map(this::predictInner).collect(toList()); // jdk 8 new features
+		Map<String, Double> result = system.evaluate(testSents, predicted, testPairs, NEConfig.EVAL_FILE);
 
 		double fscore = result.get("fscore");
 		System.err.printf("F-score = %.2f%n", fscore);
-
-		long millis = timer.stop();
-		double wordspersec = numWords / (((double) millis) / 1000);
-		double sentspersec = numSentences / (((double) millis) / 1000);
-		System.err.printf("%s parsed %d words in %d sentences in %.1fs at %.1f w/s, %.1f sent/s.%n",
-				StringUtils.getShortClassName(this), numWords, numSentences, millis / 1000.0, wordspersec, sentspersec);
 
 		if (outFile != null) {
 			NEUtil.writeConllFile(outFile, testSents, predicted);
 		}
 		return fscore;
-	}
-
-	/**
-	 * Prepare for parsing after a model has been loaded.
-	 */
-	private void initialize(boolean verbose) {
-		if (knownLabels == null)
-			throw new IllegalStateException("Model has not been loaded or trained");
-
-		// NOTE: remove -NULL-, and then pass the label set to the ParsingSystem
-		List<String> lDict = new ArrayList<>(knownLabels);
-		lDict.remove(0);
-
-		system = new NEStandard(config.tlp, lDict, verbose, config.IOBESencoding);
-
-		// Pre-compute matrix multiplications
-		if (config.numPreComputed > 0) {
-			classifier.preCompute();
-		}
 	}
 
 	/**
@@ -1203,17 +724,16 @@ public class NEReconizer {
 		NEConfig.OS = props.getProperty("os").equals("windows")? "windows":"mac";
 		// Train with CoNLL-X data
 		if (props.containsKey("trainFile"))
-			parser.train(props.getProperty("trainFile"), props.getProperty("devFile"), props.getProperty("model"),
-					props.getProperty("embedFile"), props.getProperty("preModel"));
+			parser.train(props.getProperty("trainFile"), props.getProperty("devFile"), props.getProperty("model"));
 
-		boolean loaded = false;
-		// Test with CoNLL-X data
-		if (props.containsKey("testFile")) {
-			parser.loadModelFile(props.getProperty("model"));
-			loaded = true;
-			System.err.println("##Model:"+loaded);
-			parser.testCoNLL(props.getProperty("testFile"), props.getProperty("outFile"));
-		}
+//		boolean loaded = false;
+//		// Test with CoNLL-X data
+//		if (props.containsKey("testFile")) {
+//			parser.loadModelFile(props.getProperty("model"));
+//			loaded = true;
+//			System.err.println("##Model:"+loaded);
+//			parser.testCoNLL(props.getProperty("testFile"), props.getProperty("outFile"));
+//		}
 	}
 
 }

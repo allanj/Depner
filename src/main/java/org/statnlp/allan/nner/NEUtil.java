@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-
 import edu.stanford.nlp.io.IOUtils;
 import edu.stanford.nlp.io.RuntimeIOException;
 import edu.stanford.nlp.ling.CoreLabel;
@@ -134,7 +133,7 @@ public class NEUtil {
 		return input.subList(0, subsetSize);
 	}
 
-	public static void loadConllFile(String inFile, List<NEDependencyTree> trees, List<Sequence> sents, List<Sequence> ners, boolean unlabeled,
+	public static void loadConllFile(String inFile, List<Sequence> sents, List<JointPair> pairs, boolean unlabeled,
 			boolean cPOS, boolean IOBES) {
 
 		BufferedReader reader = null;
@@ -154,8 +153,7 @@ public class NEUtil {
 						if(IOBES) {
 							encodeIOBES(nerArr);
 						}
-						ners.add(new NESeq(nerArr));
-						trees.add(tree);
+						pairs.add(new JointPair(new NESeq(nerArr), tree));
 						CoreLabel[] sentArr = new CoreLabel[sent.size()];
 						sent.toArray(sentArr);
 						sents.add(new Sent(sentArr));
@@ -192,12 +190,12 @@ public class NEUtil {
 		}
 	}
 
-	public static void loadConllFile(String inFile, List<Sequence> sents, List<Sequence> ners, List<NEDependencyTree> trees) {
-		loadConllFile(inFile, trees, sents, ners, false, false, false);
+	public static void loadConllFile(String inFile, List<Sequence> sents, List<JointPair> pairs) {
+		loadConllFile(inFile, sents, pairs, false, false, false);
 	}
 	
-	public static void loadConllFile(String inFile, List<Sequence> sents, List<Sequence> ners, List<NEDependencyTree> trees, boolean IOBESencoding) {
-		loadConllFile(inFile, trees, sents, ners, false, false, IOBESencoding);
+	public static void loadConllFile(String inFile, List<Sequence> sents, List<JointPair> pairs, boolean IOBESencoding) {
+		loadConllFile(inFile, sents, pairs, false, false, IOBESencoding);
 	}
 
 	private static void encodeIOBES(CoreLabel[] nes){
@@ -223,13 +221,13 @@ public class NEUtil {
 		}
 	}
 	
-	public static void writeConllFile(String outFile, List<Sequence> sentences, List<Sequence> ners) {
+	public static void writeConllFile(String outFile, List<Sequence> sentences, List<JointPair> predictions) {
 		try {
 			PrintWriter output = IOUtils.getPrintWriter(outFile);
 
 			for (int i = 0; i < sentences.size(); i++) {
 				Sequence sentence = sentences.get(i);
-				Sequence ner = ners.get(i);
+				Sequence ner = predictions.get(i).ners;
 
 				for (int j = 0; j < sentence.size(); ++j) {
 					String word = sentence.get(j)[0];
@@ -244,31 +242,33 @@ public class NEUtil {
 		}
 	}
 
-	public static void printNERStats(String str, List<Sequence> ners) {
+	public static void printNERStats(String str, List<JointPair> pairs) {
 		log.info(NEConfig.SEPARATOR + " " + str);
-		int nNER = ners.size();
+		int nNER = pairs.size();
 		System.err.printf("#NER sents: %d%n", nNER);
 	}
 
 	
-	public static void printTreeStats(String str, List<NEDependencyTree> trees)
+	public static void printTreeStats(String str, List<JointPair> pairs)
 	  {
 	    log.info(NEConfig.SEPARATOR + " " + str);
-	    int nTrees = trees.size();
+	    int nTrees = pairs.size();
 	    int nonTree = 0;
 	    int multiRoot = 0;
 	    int nonProjective = 0;
-	    for (NEDependencyTree tree : trees) {
-	      if (!tree.isTree())
-	        ++nonTree;
-	      else
-	      {
-	        if (!tree.isProjective())
-	          ++nonProjective;
-	        if (!tree.isSingleRoot())
-	          ++multiRoot;
-	      }
+	    for (int p = 0; p < pairs.size(); p++) {
+	    	NEDependencyTree tree = pairs.get(p).tree;
+  	        if (!tree.isTree())
+  	          ++nonTree;
+  	        else
+  	        {
+  	          if (!tree.isProjective())
+  	            ++nonProjective;
+  	          if (!tree.isSingleRoot())
+  	            ++multiRoot;
+  	        }
 	    }
+	    
 	    System.err.printf("#Trees: %d%n", nTrees);
 	    System.err.printf("%d tree(s) are illegal (%.2f%%).%n", nonTree, nonTree * 100.0 / nTrees);
 	    System.err.printf("%d tree(s) are legal but have multiple roots (%.2f%%).%n", multiRoot, multiRoot * 100.0 / nTrees);

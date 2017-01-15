@@ -6,11 +6,17 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.statnlp.allan.io.RAWF;
+import org.statnlp.allan.mfl.MFLSpan;
+import org.statnlp.allan.mfl.MFLUtils;
+
 import edu.stanford.nlp.trees.TreebankLanguagePack;
 import edu.stanford.nlp.util.logging.Redwood;
 
@@ -98,6 +104,8 @@ public abstract class NERParsingSystem {
 	// TODO pass labels as Map<String, GrammaticalRelation>; use
 	// GrammaticalRelation throughout
 
+	private static HashSet<String> punct = new HashSet<>(Arrays.asList("''", ",", ".", ":", "``", "-LRB-", "-RRB-"));
+	
 	/**
 	 * @param tlp
 	 *            TreebankLanguagePack describing the language being parsed
@@ -142,20 +150,23 @@ public abstract class NERParsingSystem {
 	 *
 	 * @return A map from metric name to metric value
 	 */
-	public Map<String, Double> evaluate(List<Sequence> sents, List<Sequence> predictions, List<Sequence> golds,
+	public Map<String, Double> evaluate(List<Sequence> sents, List<JointPair> predictions, List<JointPair> goldPairs,
 			String evalOut) {
 		Map<String, Double> result = new HashMap<>();
 
-		if (predictions.size() != golds.size()) {
+		if (predictions.size() != goldPairs.size()) {
 			log.err("Incorrect number of predictions.");
 			return null;
 		}
 		// currently, we dun have anything to plugin to result.
 		// just show the conll eval script result
-		double fscore = conlleval(sents, predictions, golds, evalOut);
-		double acc = getAcc(sents, predictions, golds)*100;
+		double fscore = conlleval(sents, predictions, goldPairs, evalOut);
+		double uas = getUAS(sents, predictions, goldPairs)*100;
+		double comb = getComb(sents, predictions, goldPairs)*100;
+		//TODO: double comb = getComb()
 		result.put("fscore", fscore);
-		result.put("accuracy", acc);
+		result.put("uas", uas);
+		result.put("comb", comb);
 		return result;
 	}
 
@@ -167,16 +178,16 @@ public abstract class NERParsingSystem {
 	 * @param golds
 	 * @param evalOut
 	 */
-	private double conlleval(List<Sequence> sents, List<Sequence> predictions, List<Sequence> golds, String evalOut) {
+	private double conlleval(List<Sequence> sents, List<JointPair> predictions, List<JointPair> goldPairs, String evalOut) {
 		PrintWriter pw;
 		try {
 			pw = RAWF.writer(evalOut);
 			for (int pos = 0; pos < sents.size(); pos++) {
 				Sequence sent = sents.get(pos);
-				Sequence prediction = predictions.get(pos);
-				Sequence gold = golds.get(pos);
+				Sequence nerPrediction = predictions.get(pos).ners;
+				Sequence gold = goldPairs.get(pos).ners;
 				for (int i = 0; i < sent.size(); i++) {
-					String pred = prediction.get(i)[0];
+					String pred = nerPrediction.get(i)[0];
 					if (pred.startsWith("S"))
 						pred = "B" + pred.substring(1);
 					if (pred.startsWith("E"))
@@ -229,32 +240,70 @@ public abstract class NERParsingSystem {
 		}
 		return fscore;
 	}
-
-	/**
-	 * Obtain the accuracy of the named entity parser
-	 * @param sentences
-	 * @param predictions
-	 * @param golds
-	 * @return
-	 */
-	private double getAcc(List<Sequence> sentences, List<Sequence> predictions, List<Sequence> golds) {
-		int corr = 0;
+	
+	private double getUAS(List<Sequence> sents, List<JointPair> predictions, List<JointPair> goldPairs) {
 		int total = 0;
-		for (int pos = 0; pos < sentences.size(); pos++) {
-			Sequence prediction = predictions.get(pos);
-			Sequence gold = golds.get(pos);
-			for (int i = 0; i < gold.size(); i++) {
-				if (gold.get(i)[0].equals(prediction.get(i)[0]))
-					corr++;
-				total++;
+		int corr = 0;
+		for (int pos = 0; pos < sents.size(); pos++) {
+			Sequence sent = sents.get(pos);
+			NEDependencyTree preDep = predictions.get(pos).tree;
+			NEDependencyTree gold = goldPairs.get(pos).tree;
+			for (int i = 1; i <= sent.size(); ++i) {
+				if (!punct.contains(sent.tokens[i].tag())) {
+					if (preDep.getHead(i) == gold.getHead(i))
+						corr++;
+					total++;
+				}
 			}
 		}
-		return corr * 1.0 / total;
+		return corr*1.0/total;
+	}
+	
+	private double getComb(List<Sequence> sents, List<JointPair> predictions, List<JointPair> goldPairs) {
+		int tp = 0;
+		int tp_fp = 0;
+		int tp_fn = 0;
+		for(int index = 0; index < sents.size(); index++){
+			Sequence sent = sents.get(index);
+			List<MFLSpan> outputSpans = MFLUtils.toSpan(goldPairs.get(index).ners, goldPairs.get(index).tree);
+			List<MFLSpan> predSpans = MFLUtils.toSpan(predictions.get(index).ners, predictions.get(index).tree);
+			Map<MFLSpan, MFLSpan> outputMap = new HashMap<MFLSpan, MFLSpan>(outputSpans.size());
+			for (MFLSpan outputSpan : outputSpans) outputMap.put(outputSpan, outputSpan);
+			Map<MFLSpan, MFLSpan> predMap = new HashMap<MFLSpan, MFLSpan>(outputSpans.size());
+			for (MFLSpan predSpan : predSpans) predMap.put(predSpan, predSpan);
+			for (MFLSpan predSpan: predSpans) {
+				if (predSpan.start == predSpan.end && punct.contains(sent.tokens[predSpan.start].tag())) {
+					continue;
+				}
+				if (predSpan.start == predSpan.end && predSpan.start == 0) {
+					continue;
+				}
+				if (outputMap.containsKey(predSpan)) {
+					MFLSpan outputSpan = outputMap.get(predSpan);
+					Set<Integer> intersection = new HashSet<Integer>(predSpan.heads);
+					intersection.retainAll(outputSpan.heads);
+					tp += intersection.size();
+				}
+				tp_fp += predSpan.heads.size();
+			}
+			
+			for (MFLSpan outputSpan: outputSpans) {
+				if (outputSpan.start == outputSpan.end && punct.contains(sent.tokens[outputSpan.start].tag())) {
+					continue;
+				}
+				if (outputSpan.start == outputSpan.end && outputSpan.start == 0) {
+					continue;
+				}
+				tp_fn += outputSpan.heads.size();
+			}
+		}
+//		double precision = tp*1.0 / tp_fp * 100;
+//		double recall = tp*1.0 / tp_fn * 100;
+		double fmeasure = 2.0*tp / (tp_fp + tp_fn) * 100;
+//		System.out.printf("[Unit Attachment Evaluation]\n");
+//		System.out.printf("TP: %d, TP+FP: %d, TP+FN: %d\n", tp, tp_fp, tp_fn);
+//		System.out.printf("Precision: %.2f%%, Recall: %.2f%%, F-measure: %.2f%%\n", precision, recall, fmeasure);
+		return fmeasure;
 	}
 
-	public double getFscore(List<Sequence> sents, List<Sequence> predictions, List<Sequence> golds,
-			String evalOut){
-		Map<String, Double> result = evaluate(sents, predictions, golds, evalOut);
-		return result.get("fscore");
-	}
 }
