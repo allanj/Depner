@@ -91,7 +91,7 @@ public class NEConfiguration {
 	 *            Word index (indexed from 0)
 	 */
 	public String getLabel(int k) {
-		return k < 0 || k >= sent.size() ? NEConfig.NULL : ners.get(k)[0];
+		return k < 0 || k >= sent.size() ? NEConfig.NULL : ners.tokens[k].ner();
 	}
 
 	/**
@@ -120,7 +120,7 @@ public class NEConfiguration {
 	 *            Word index (indexed from 0)
 	 */
 	public String getWord(int k) {
-		return k < 0 || k >= sent.size() ? NEConfig.NULL : sent.get(k)[0];
+		return k < 0 || k >= sent.size() ? NEConfig.NULL : sent.tokens[k].word();
 	}
 
 	/**
@@ -128,9 +128,9 @@ public class NEConfiguration {
 	 *            Word index (0 indexed)
 	 */
 	public String getPOS(int k) {
-		return k < 0 || k >= sent.size() ? NEConfig.NULL : sent.get(k)[1];
+		return k < 0 || k >= sent.size() ? NEConfig.NULL : sent.tokens[k].tag();
 	}
-
+	
 	public void addArc(int h, int t, String l) {
 	    tree.set(t, h, l);
 	}

@@ -120,11 +120,11 @@ public abstract class NERParsingSystem {
 		// in our NER case, there is no root element
 		// rootLabel = labels.get(0);
 		makeTransitions();
-
 		if (verbose) {
 			log.info(NEConfig.SEPARATOR);
 			log.info("#Transitions: " + numTransitions());
 			log.info("#Labels: " + labels.size());
+			log.info("Labels: " + labels.toString());
 			log.info("Eval_Script:" + NEConfig.EVAL_SCRIPT);
 			// log.info("ROOTLABEL: " + rootLabel);
 		}
@@ -162,7 +162,7 @@ public abstract class NERParsingSystem {
 		// just show the conll eval script result
 		double fscore = conlleval(sents, predictions, goldPairs, evalOut);
 		double uas = getUAS(sents, predictions, goldPairs)*100;
-		double comb = getComb(sents, predictions, goldPairs)*100;
+		double comb = getComb(sents, predictions, goldPairs);
 		//TODO: double comb = getComb()
 		result.put("fscore", fscore);
 		result.put("uas", uas);
@@ -186,13 +186,13 @@ public abstract class NERParsingSystem {
 				Sequence sent = sents.get(pos);
 				Sequence nerPrediction = predictions.get(pos).ners;
 				Sequence gold = goldPairs.get(pos).ners;
-				for (int i = 0; i < sent.size(); i++) {
-					String pred = nerPrediction.get(i)[0];
+				for (int i = 1; i < sent.size(); i++) {
+					String pred = nerPrediction.tokens[i].ner();
 					if (pred.startsWith("S"))
 						pred = "B" + pred.substring(1);
 					if (pred.startsWith("E"))
 						pred = "I" + pred.substring(1);
-					pw.println(sent.get(i)[0] + " " + gold.get(i)[0] + " " + pred);
+					pw.println(sent.tokens[i].word() + " " + sent.tokens[i].tag() + " " + gold.tokens[i].ner() + " " + pred);
 				}
 				pw.println();
 			}
@@ -248,7 +248,7 @@ public abstract class NERParsingSystem {
 			Sequence sent = sents.get(pos);
 			NEDependencyTree preDep = predictions.get(pos).tree;
 			NEDependencyTree gold = goldPairs.get(pos).tree;
-			for (int i = 1; i <= sent.size(); ++i) {
+			for (int i = 1; i < sent.size(); ++i) {
 				if (!punct.contains(sent.tokens[i].tag())) {
 					if (preDep.getHead(i) == gold.getHead(i))
 						corr++;
@@ -256,6 +256,7 @@ public abstract class NERParsingSystem {
 				}
 			}
 		}
+		System.out.printf("UAS: %.2f\n", corr*1.0/total*100);
 		return corr*1.0/total;
 	}
 	
@@ -297,12 +298,12 @@ public abstract class NERParsingSystem {
 				tp_fn += outputSpan.heads.size();
 			}
 		}
-//		double precision = tp*1.0 / tp_fp * 100;
-//		double recall = tp*1.0 / tp_fn * 100;
+		double precision = tp*1.0 / tp_fp * 100;
+		double recall = tp*1.0 / tp_fn * 100;
 		double fmeasure = 2.0*tp / (tp_fp + tp_fn) * 100;
-//		System.out.printf("[Unit Attachment Evaluation]\n");
-//		System.out.printf("TP: %d, TP+FP: %d, TP+FN: %d\n", tp, tp_fp, tp_fn);
-//		System.out.printf("Precision: %.2f%%, Recall: %.2f%%, F-measure: %.2f%%\n", precision, recall, fmeasure);
+		System.out.printf("[Unit Attachment Evaluation]\n");
+		System.out.printf("TP: %d, TP+FP: %d, TP+FN: %d\n", tp, tp_fp, tp_fn);
+		System.out.printf("Precision: %.2f%%, Recall: %.2f%%, F-measure: %.2f%%\n", precision, recall, fmeasure);
 		return fmeasure;
 	}
 

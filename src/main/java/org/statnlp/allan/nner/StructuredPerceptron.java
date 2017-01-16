@@ -59,8 +59,10 @@ public class StructuredPerceptron {
 	
 	public void update(List<Integer> goldFeatures, List<Integer> predFeatures) {
 		for (int f: goldFeatures)
+			if (f != -1)
 			this.weight[f]++;
 		for (int f: predFeatures)
+			if (f != -1)
 			this.weight[f]--;
 	}
 	
@@ -75,10 +77,18 @@ public class StructuredPerceptron {
 			this.avgWeight[w] = this.allWeight[w]/avgCount;
 	}
 	
-	public double getScore (List<Integer> feature) {
+	public double getScore (List<Integer> feature, boolean isTrain) {
 		double sum = 0;
 		for (int f: feature)
-			sum += this.weight[f];
+			if (f != -1) {
+				if (!isTrain && isAvg) {
+					sum += this.avgWeight[f];
+				} else {
+					sum += weight[f];
+				}
+			}
+				
+				
 		return sum;
 	}
 	
@@ -92,7 +102,6 @@ public class StructuredPerceptron {
 	public void finalizeClassifier() {
 		if (this.isAvg)
 			this.weight = this.avgWeight;
-		this.avgWeight = null;
 		this.allWeight = null;
 	}
 }

@@ -25,7 +25,7 @@ public class NEStandard extends NERParsingSystem {
 	@Override
 	public boolean isTerminal(NEConfiguration c) {
 		// means all words are shifted
-		return c.getBufferSize() == 0;
+		return c.getBufferSize() == 0 && c.getStackSize() == 1;
 	}
 
 	@Override
@@ -44,12 +44,13 @@ public class NEStandard extends NERParsingSystem {
 		int length = s.size();
 		// For each token, add dummy elements to the configuration's tree
 		// and add the words onto the buffer
-		for (int i = 1; i <= length; ++i) {
+		for (int i = 1; i < length; ++i) {
 			// put the token to buffer
 			c.tree.add(NEConfig.NONEXIST, NEConfig.UNKNOWN);
 			c.buffer.add(i);
 		}
 		c.stack.add(0);
+		c.ners.set(0, "O");
 		return c;
 	}
 
@@ -74,10 +75,10 @@ public class NEStandard extends NERParsingSystem {
 	        return nStack >= 2;
 	    } else {
 			if (nBuffer <= 0) return false;
-			int s0 = c.getStack(0);
+			int bMinus1 = c.getBuffer(0) -1;
 			String currentLabel = t.substring(2, t.length()-1);
-			if (s0 != NEConfig.NONEXIST){
-				String prevLabel = c.getLabel(s0);
+			if (bMinus1 != NEConfig.NONEXIST){
+				String prevLabel = c.getLabel(bMinus1);
 				if (!prevLabel.equals(NEConfig.NULL)){
 					if(prevLabel.startsWith("I")){
 						if(currentLabel.startsWith("I") && !prevLabel.substring(1).equals(currentLabel.substring(1))) return false;
@@ -118,12 +119,17 @@ public class NEStandard extends NERParsingSystem {
 		int w1 = c.getStack(1);
 	    int w2 = c.getStack(0);
 	    if (t.startsWith("L")) {
-	      c.addArc(w2, w1, t.substring(2, t.length() - 1));
+	      c.addArc(w2, w1, NEConfig.UNKNOWN);
 	      c.removeSecondTopStack();
 	    } else if (t.startsWith("R")) {
-	      c.addArc(w1, w2, t.substring(2, t.length() - 1));
+	      c.addArc(w1, w2, NEConfig.UNKNOWN);
 	      c.removeTopStack();
-	    } else c.shift(t.substring(2, t.length() - 1));
+	    } else {
+	    	String str = t.substring(2, t.length() - 1);
+	    	if (!str.equals("O") && !str.contains("-"))
+	    		throw new RuntimeException("label "+ t + "???");
+	    	c.shift(str);
+	    }
 	}
 
 	// O(n) implementation
@@ -137,8 +143,8 @@ public class NEStandard extends NERParsingSystem {
 	      return "R";
 	    else {
 	    	int b0 = c.getBuffer(0);
-			String label = dner.get(b0)[0];
-			return "S(" + label + ")";
+			String ner = dner.tokens[b0].ner();
+			return "S(" + ner + ")";
 	    }
 	}
 	

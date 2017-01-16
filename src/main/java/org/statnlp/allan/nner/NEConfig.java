@@ -84,7 +84,7 @@ public class NEConfig {
 	/**
 	 * Maximum number of iterations for training
 	 */
-	public int maxIter = 20000;
+	public int maxIter = 3;
 
 	/**
 	 * Size of mini-batch for training. A random subset of training examples of
@@ -148,7 +148,7 @@ public class NEConfig {
 	 * During training, run a full UAS evaluation after every
 	 * {@code evalPerIter} iterations.
 	 */
-	public int evalPerIter = 100;
+	public int evalPerIter = 1;
 
 	/**
 	 * During training, clear AdaGrad gradient histories after every
@@ -164,10 +164,6 @@ public class NEConfig {
 	 */
 	public boolean saveIntermediate = true;
 
-	/**
-	 * Train a labeled parser if labeled = true, and a unlabeled one otherwise.
-	 */
-	public boolean unlabeled = false;
 
 	/**
 	 * Use coarse POS instead of fine-grained POS if cPOS = true.
@@ -242,7 +238,6 @@ public class NEConfig {
 		evalPerIter = PropertiesUtils.getInt(props, "evalPerIter", evalPerIter);
 		clearGradientsPerIter = PropertiesUtils.getInt(props, "clearGradientsPerIter", clearGradientsPerIter);
 		saveIntermediate = PropertiesUtils.getBool(props, "saveIntermediate", saveIntermediate);
-		unlabeled = PropertiesUtils.getBool(props, "unlabeled", unlabeled);
 		cPOS = PropertiesUtils.getBool(props, "cPOS", cPOS);
 		IOBESencoding = PropertiesUtils.getBool(props, "iobes", IOBESencoding);
 		noPunc = PropertiesUtils.getBool(props, "noPunc", noPunc);
@@ -293,7 +288,6 @@ public class NEConfig {
 		System.err.printf("evalPerIter = %d%n", evalPerIter);
 		System.err.printf("clearGradientsPerIter = %d%n", clearGradientsPerIter);
 		System.err.printf("saveItermediate = %b%n", saveIntermediate);
-		System.err.printf("unlabeled = %b%n", unlabeled);
 		System.err.printf("cPOS = %b%n", cPOS);
 		System.err.printf("noPunc = %b%n", noPunc);
 		System.err.printf("doWordEmbeddingGradUpdate = %b%n", doWordEmbeddingGradUpdate);

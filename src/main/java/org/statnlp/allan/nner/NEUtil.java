@@ -133,8 +133,7 @@ public class NEUtil {
 		return input.subList(0, subsetSize);
 	}
 
-	public static void loadConllFile(String inFile, List<Sequence> sents, List<JointPair> pairs, boolean unlabeled,
-			boolean cPOS, boolean IOBES) {
+	public static void loadConllFile(String inFile, List<Sequence> sents, List<JointPair> pairs, boolean IOBES) {
 
 		BufferedReader reader = null;
 		try {
@@ -143,6 +142,14 @@ public class NEUtil {
 			List<CoreLabel> sent = new ArrayList<>();
 			List<CoreLabel> nerSeq = new ArrayList<>();
 			NEDependencyTree tree = new NEDependencyTree();
+			CoreLabel token = new CoreLabel();
+			token.setWord("ROOT");
+			token.setTag("ROOT");
+			sent.add(token);
+
+			CoreLabel nerToken = new CoreLabel();
+			nerToken.setNER("O");
+			nerSeq.add(nerToken);
 			
 			for (String line : IOUtils.getLineIterable(reader, false)) {
 				String[] splits = line.split("\t");
@@ -160,26 +167,29 @@ public class NEUtil {
 						sent = new ArrayList<>();
 						tree = new NEDependencyTree();
 						nerSeq = new ArrayList<>();
+						token = new CoreLabel();
+						token.setWord("ROOT");
+						token.setTag("ROOT");
+						sent.add(token);
+
+						nerToken = new CoreLabel();
+						nerToken.setNER("O");
+						nerSeq.add(nerToken);
 					}
 				} else {
-					String word = splits[1], pos = cPOS ? splits[3] : splits[4], label = splits[10];
+					String word = splits[1], pos = splits[4], entity = splits[10];
 					int head = Integer.parseInt(splits[6]);
 					
-					CoreLabel token = new CoreLabel();
+					token = new CoreLabel();
 					token.setWord(word);
 					token.setTag(pos);
 					sent.add(token);
 
-					CoreLabel nerToken = new CoreLabel();
-					if (!unlabeled) {
-						nerToken.setNER(label);
-						nerSeq.add(nerToken);
-						tree.add(head, NEConfig.UNKNOWN);
-					} else {
-						nerToken.setNER(NEConfig.UNKNOWN); // unknown ne type
-						nerSeq.add(nerToken);
-						tree.add(head, NEConfig.UNKNOWN);
-					}
+					nerToken = new CoreLabel();
+					nerToken.setNER(entity);
+//					nerToken.setNER("O");
+					nerSeq.add(nerToken);
+					tree.add(head, NEConfig.UNKNOWN);
 					
 				}
 			}
@@ -188,14 +198,6 @@ public class NEUtil {
 		} finally {
 			IOUtils.closeIgnoringExceptions(reader);
 		}
-	}
-
-	public static void loadConllFile(String inFile, List<Sequence> sents, List<JointPair> pairs) {
-		loadConllFile(inFile, sents, pairs, false, false, false);
-	}
-	
-	public static void loadConllFile(String inFile, List<Sequence> sents, List<JointPair> pairs, boolean IOBESencoding) {
-		loadConllFile(inFile, sents, pairs, false, false, IOBESencoding);
 	}
 
 	private static void encodeIOBES(CoreLabel[] nes){
