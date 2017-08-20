@@ -255,7 +255,7 @@ public class Classifier  {
             sum2 += scores[i];
           }
         }
-
+        //this part is the normalization, can apply + oracle serve as the denominator.
         cost += (Math.log(sum2) - Math.log(sum1)) / params.getBatchSize();
         if (label.get(optLabel) == 1)
           correct += +1.0 / params.getBatchSize();
