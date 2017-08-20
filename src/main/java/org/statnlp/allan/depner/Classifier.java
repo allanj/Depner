@@ -685,6 +685,8 @@ public class Classifier  {
     int offset = 0;
     for (int j = 0; j < feature.length; ++j) {
       int tok = feature[j];
+      // j is the index in the feature array
+      // #token is the 
       int index = tok * config.numTokens + j;
 
       if (preMap.containsKey(index)) {
